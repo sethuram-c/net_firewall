@@ -1,0 +1,66 @@
+# Linux out-of-tree module / Kbuild artifacts
+*.o
+*.ko
+*.ko.*
+*.mod
+*.mod.c
+*.mod.o
+*.order
+*.symvers
+.*.cmd
+*.cmd
+.tmp_versions/
+Module.markers
+modules.builtin
+modules.builtin.modinfo
+modules.order
+*.dwo
+*.gcno
+*.gcda
+*.su
+*.s
+*.i
+# Kernel temporary generated files and local signing keys
+*.tmp
+*.unsigned
+*.pem
+*.key
+*.p12
+*.pfx
+# Python bytecode, testing, packaging
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.venv/
+venv/
+build/
+dist/
+*.egg-info/
+# IDE / OS artifacts
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+# Local logs, traces, crash and packet captures
+*.log
+*.pcap
+*.pcapng
+core
+core.*
+# User-specific env and secrets
+.env
+.env.*
+!.env.example
+# Learning PDFs are private and should not be tracked
+learning/
+learning-materials/
+*_Learning.pdf
+# Keep normal sources (C, Python, Bash), Makefile, .gitkeep, README, progress.md tracked

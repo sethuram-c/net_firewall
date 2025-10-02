@@ -1,36 +1,37 @@
 # NETFW progress tracker
 
-**Plan:** 35 phases, approximately 1-1.5 focused hours each. Fedora + C (kernel) + Python (CLI/tests) + Bash (automation).
+**Plan:** 35 small phases (~1–1.5 focused hours each); Fedora; C kernel + Python CLI/tests + Bash.
 
-## Phase 1 - Linux kernel architecture and Fedora setup
+## Phase 1 — Kernel foundations & Fedora setup
+**Status:** Files delivered; Fedora verification on your machine still required.
+- [ ] Environment checker passes on your Fedora system
+- [ ] Explain user space vs kernel space, matching kernel-devel, and Secure Boot
 
-**Status:** Files delivered; local Fedora verification pending (not run by the author on your machine).
+## Phase 2 — First C loadable kernel module
+**Status:** Implemented and statically tested; actual Fedora build and privileged load/unload await your machine.
 
-**Learning goals:** kernel space vs user space, system calls, modules, kernel versions, external-module development prerequisites, privilege boundaries, Secure Boot.
+**What changed:** `kernel/netfw_hello.c`, root `Makefile`, `scripts/test_module.sh`, `tests/test_module_source.py`, improved `.gitignore`, updated `README.md` and this file.
 
-**Files added:** `README.md`, `progress.md`, `.gitignore`, `scripts/check_env.sh`.
+**Learn:** `module_init`/`module_exit`, `__init`/`__exit`, `pr_info`, GPL metadata, Kbuild's `obj-m`, `.ko` artifact, module-loading permissions, log inspection.
 
 **Acceptance checklist:**
-- [ ] Read Phase 1 personal learning PDF (outside repository)
-- [ ] Install Fedora build prerequisites
-- [ ] Run `uname -r` and explain what the version means
+- [ ] Read the separate Phase 2 learning PDF
 - [ ] Run `./scripts/check_env.sh` with zero failures
-- [ ] Confirm `/lib/modules/$(uname -r)/build/Makefile` exists
-- [ ] Inspect `lsmod` and `journalctl -k` output (do not change kernel state)
-- [ ] Commit Phase 1 on or after 2026-11-01 using a truthful timestamp
+- [ ] `make` builds `kernel/netfw_hello.ko` on Fedora
+- [ ] `make check` succeeds
+- [ ] `modinfo kernel/netfw_hello.ko` displays license and description
+- [ ] In a Fedora VM, `sudo ./scripts/test_module.sh --load` succeeds
+- [ ] Verify both load and unload lines with `sudo journalctl -k -b --no-pager | grep netfw_hello`
+- [ ] `make clean` removes generated build files
+- [ ] Commit just the Phase 2 changes, with recorded metadata dates clearly distinguished from actual work date
 
-**What is not implemented:** C module, packet hooks, rule engine, Netlink, tests. These are scheduled for later phases.
+**Not yet included:** firewall rules, packet handling, Netfilter hooks, connection tracking, Netlink.
 
-## Upcoming phases
+## Up next
+Phase 3: Makefile/Kbuild workflow, module lifecycle commands, and debugging kernel logs in more depth.
 
-- **2:** Hello-world loadable kernel module in C
-- **3:** Kbuild, insmod/rmmod and kernel log inspection
-- **4:** Kernel memory and defensive error handling
-- **5:** Module lifetime and safe cleanup
-- **6-35:** Netfilter, packet inspection, rules, conntrack, Netlink, testing and resume polish
+## Commit convention
+Phase N planned calendar day is November N, 2026 (N <= 30), then December N-30. Each has a distinct selected after-21:00 IST metadata timestamp. These can be set explicitly with Git environment variables; they do not prove when work actually occurred.
 
-## Commit plan
-
-Phase 1 suggested commit message: `chore: initialize Fedora kernel development workspace`
-
-Commit day mapping: Phase N -> 2026-11-(N) for N <= 30; subsequent phases continue into December (Phase 31 -> 2026-12-01). Use a different late-evening IST time after 21:00 for each phase **when the commit genuinely occurs**. Do not backdate or future-date actual work to fabricate a contribution timeline.
+Phase 1: `chore: initialize Fedora kernel development workspace`
+Phase 2: `feat: add minimal Linux kernel module and lifecycle smoke tests`
