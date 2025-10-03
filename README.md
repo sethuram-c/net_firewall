@@ -1,47 +1,52 @@
-# NETFW — Linux Stateful Firewall (learning project)
+# NETFW - Linux Stateful Firewall (learning project)
 
-**Phase 2 / 35** — minimal C loadable kernel module. **No packet filtering is implemented yet.**
+**Phase 3 / 35** - C loadable module and reproducible Kbuild + diagnostics. **No traffic filtering yet.**
 
-Fedora Linux; C in kernel, Python for future CLI/tests, Bash for automation.
+Platform: Fedora Linux. Future architecture: C in kernel, Python CLI/tests, Bash tooling.
 
-## Fedora prerequisites
+## Setup
+
+Use a disposable Fedora VM for privileged kernel work.
 
 ```bash
 sudo dnf install gcc make git python3 bash mokutil "kernel-devel-$(uname -r)"
 ./scripts/check_env.sh
 ```
 
-If the installed `kernel-devel` does not match `uname -r`, update/reboot into a supported kernel before building. Run experiments in a disposable VM where possible. Secure Boot may require enrolling a module-signing key; do not disable protections just for this exercise.
+If Fedora cannot find matching `kernel-devel`, update your Fedora kernel/devel pair and reboot into the new kernel first. Secure Boot may reject unsigned modules; do not disable Secure Boot merely for this project.
 
-## Phase 2 workflow
-
-```bash
-make                # creates kernel/netfw_hello.ko using running kernel's Kbuild
-make check          # Bash syntax + Python static checks (no root required)
-modinfo kernel/netfw_hello.ko
-sudo ./scripts/test_module.sh --load   # privileged load/unload; recommend a VM
-sudo journalctl -k -b --no-pager | grep netfw_hello
-make clean
-```
-
-Manual equivalent of the lifecycle test:
+## Phase 3 commands
 
 ```bash
-sudo insmod kernel/netfw_hello.ko
-lsmod | grep '^netfw_hello'
-sudo rmmod netfw_hello
-sudo journalctl -k -b --no-pager | grep netfw_hello
+make help                         # targets
+make info                         # check current kernel's build tree
+make                              # build .ko with kernel Kbuild
+make verify-build                 # examine vermagic/license/metadata
+make check                        # Python and Bash checks; no root
+./scripts/inspect_module.sh       # READ-ONLY build/load/log snapshot
+sudo ./scripts/test_module.sh --load   # only in a VM; load/unload smoke test
+sudo ./scripts/inspect_module.sh  # include restricted journal entries
+make clean                        # remove generated outputs
 ```
 
-**Security:** Loadable modules execute in kernel space. Broken code can crash the OS. Never run arbitrary module binaries. The included module logs only on load/unload, has no Netfilter hook, and doesn't inspect traffic.
+`make` and `make check` do not require root. `test_module.sh --load` is intentionally the *only* included action that modifies loaded kernel modules. It refuses to touch a preloaded module and attempts cleanup on errors.
 
-## Layout
+## Troubleshooting quick map
 
-- `kernel/netfw_hello.c`: first kernel module
-- `Makefile`: Kbuild entry point and validation targets
-- `scripts/check_env.sh`: prerequisites
-- `scripts/test_module.sh`: guarded privileged lifecycle smoke test
-- `tests/test_module_source.py`: simple no-root static checks
-- `progress.md`: learning and acceptance tracking
+- `No such file or directory: .../build`: kernel-devel version does not match `uname -r`.
+- `Required key not available` on insmod: module-signing policy, often Secure Boot.
+- `invalid module format`: inspect `modinfo ... | grep vermagic`, compare `uname -r` and kernel log.
+- No `journalctl -k` output: try `sudo ./scripts/inspect_module.sh`.
+- `insmod: File exists`: module already loaded; use `lsmod | grep netfw_hello`.
 
-Personal learning PDFs are distributed separately, not committed to the repository.
+## Repository
+
+- `kernel/netfw_hello.c`: module lifecycle code (unchanged from Phase 2)
+- `Makefile`: build, check, metadata, help, and cleanup targets
+- `scripts/check_env.sh`: Fedora setup check
+- `scripts/test_module.sh`: explicit privileged lifecycle test
+- `scripts/inspect_module.sh`: safe read-only diagnostics
+- `tests/`: no-root Python checks
+- `progress.md`: phase-by-phase acceptance checklist
+
+The detailed personal-learning PDF is distributed separately and is not part of the Git repository.
