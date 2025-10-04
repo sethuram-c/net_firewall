@@ -28,7 +28,7 @@
 **Not yet included:** firewall rules, packet handling, Netfilter hooks, connection tracking, Netlink.
 
 ## Phase 3 - Kbuild workflow and kernel diagnostics
-**Status:** Files implemented; static tests passed. Fedora compilation and privileged lifecycle verification are pending on your host/VM.
+**Status:** Fedora build, `make verify-build`, `make check` (8 tests), and diagnostics were reported successful by the learner; load/unload logs observed.
 
 **Changed:** `Makefile`, `scripts/inspect_module.sh`, `tests/test_build_workflow.py`, `.gitignore`, `README.md`, `progress.md`.
 
@@ -45,8 +45,25 @@
 - [ ] `make clean` removes build artifacts
 - [ ] Explain Kbuild, `vermagic`, journal permissions, and module-signing implications
 
+## Phase 4 - Kernel memory and error handling
+**Status:** Implemented; source tests run locally. Fedora build/load must be verified by the learner.
+
+**Changed:** `kernel/netfw_hello.c`, `tests/test_kernel_memory_source.py`, `README.md`, `progress.md`.
+
+**Learn:** kernel heap vs stack, `kmalloc` / `kfree`, `GFP_KERNEL`, allocation failure, `-ENOMEM`, bounded copying with `strscpy`, ownership, leak prevention, and why partial initialization needs cleanup.
+
+**Acceptance checklist:**
+- [ ] Read the separate personal Phase 4 PDF
+- [ ] Explain when `GFP_KERNEL` is allowed and why allocation can fail
+- [ ] `make clean && make && make verify-build` works on Fedora
+- [ ] `make check` passes all 14 tests
+- [ ] In a disposable Fedora VM, load then unload with `sudo ./scripts/test_module.sh --load`
+- [ ] Kernel journal shows allocation message and memory released message
+- [ ] Explain the `-ENOMEM` failure path (not exercised by routine smoke test)
+- [ ] Commit changed files with planned Phase 4 Git metadata
+
 ## Up next
-Phase 4: kernel memory basics and error handling (no firewall hooks yet).
+Phase 5: module lifecycle and safe cleanup review (no firewall hooks yet).
 
 ## Commit convention
 Phase N planned calendar day is November N, 2026 (N <= 30), then December N-30. Each has a distinct selected after-21:00 IST metadata timestamp. These can be set explicitly with Git environment variables; they do not prove when work actually occurred.
@@ -55,3 +72,5 @@ Phase 1: `chore: initialize Fedora kernel development workspace`
 Phase 2: `feat: add minimal Linux kernel module and lifecycle smoke tests`
 
 Phase 3: `build: add Kbuild verification and kernel diagnostics` (2026-11-03 21:18 IST metadata target)
+
+Phase 4: `feat: demonstrate safe kernel heap allocation and cleanup` (2026-11-04 21:36 IST metadata target)

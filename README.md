@@ -50,3 +50,18 @@ make clean                        # remove generated outputs
 - `progress.md`: phase-by-phase acceptance checklist
 
 The detailed personal-learning PDF is distributed separately and is not part of the Git repository.
+
+
+## Phase 4: kernel heap memory and errors
+The minimal module now allocates a 128-byte buffer with `kmalloc(..., GFP_KERNEL)` during initialization, checks the result, safely copies a short message, and releases it with `kfree()` on unload. If allocation fails, initialization returns `-ENOMEM` and the module does **not** become loaded. No firewall hooks exist yet.
+
+Fedora VM smoke test (only if module loading is allowed):
+
+```bash
+make clean && make && make verify-build && make check
+sudo ./scripts/test_module.sh --load
+sudo journalctl -k -b --no-pager | grep netfw_hello
+lsmod | grep '^netfw_hello' || echo 'module is unloaded (expected)'
+```
+
+`make check` consists of static/source tests, **not** live kernel fault injection or proof of memory safety. The script loads then unloads the module. See the personal Phase 4 PDF for the concepts and exercises.
