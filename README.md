@@ -65,3 +65,24 @@ lsmod | grep '^netfw_hello' || echo 'module is unloaded (expected)'
 ```
 
 `make check` consists of static/source tests, **not** live kernel fault injection or proof of memory safety. The script loads then unloads the module. See the personal Phase 4 PDF for the concepts and exercises.
+
+## Phase 5 - multi-resource init and error unwinding
+
+Module initialization acquires two independent allocations. If either allocation fails,
+initialization returns `-ENOMEM` and frees everything already acquired. Kernel will
+**not** call `module_exit` after failed `module_init`, so cleanup must happen in the
+init failure path. The read-only `fail_step` module parameter injects errors for learning.
+
+On a disposable Fedora VM (from repository root):
+
+```bash
+make clean && make && make verify-build && make check
+sudo ./scripts/test_failure_paths.sh
+sudo ./scripts/test_module.sh --load
+sudo journalctl -k -b --no-pager | grep netfw_hello
+```
+
+`test_failure_paths.sh` expects `insmod` to fail (normal for `fail_step=1` and `2`).
+It checks that the module is not loaded afterward; only log inspection plus more
+advanced runtime tooling can provide stronger assurance against memory leaks.
+Never use these tests on an important system; kernel modules have full kernel privileges.

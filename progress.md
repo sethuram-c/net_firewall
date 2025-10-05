@@ -62,8 +62,25 @@
 - [ ] Explain the `-ENOMEM` failure path (not exercised by routine smoke test)
 - [ ] Commit changed files with planned Phase 4 Git metadata
 
+## Phase 5 - Initialization ordering and safe rollback
+**Status:** Source implementation and no-root tests complete; Fedora module runtime testing pending.
+
+**Modified:** `kernel/netfw_hello.c`, `Makefile`, `README.md`, `progress.md`.
+**Added:** `scripts/test_failure_paths.sh`, `tests/test_lifecycle_failures_source.py`.
+**Learn:** multiple owned allocations; partial failure rollback; `goto` cleanup; return `-ENOMEM`; module parameters; why `module_exit` does not run when `module_init` fails.
+
+**Acceptance checklist:**
+- [ ] Read personal Phase 5 learning PDF (not part of repository)
+- [ ] `make clean && make && make verify-build` on Fedora
+- [ ] `make check` passes 20 tests
+- [ ] `sudo ./scripts/test_failure_paths.sh` verifies expected failures
+- [ ] `sudo ./scripts/test_module.sh --load` succeeds with default parameters
+- [ ] Inspect kernel journal for injected failure and successful cleanup messages
+- [ ] Explain reverse-order teardown and ownership after failed initialization
+- [ ] Commit Phase 5 source and documentation
+
 ## Up next
-Phase 5: module lifecycle and safe cleanup review (no firewall hooks yet).
+Phase 6: Netfilter architecture and hook concepts (packet inspection starts after that).
 
 ## Commit convention
 Phase N planned calendar day is November N, 2026 (N <= 30), then December N-30. Each has a distinct selected after-21:00 IST metadata timestamp. These can be set explicitly with Git environment variables; they do not prove when work actually occurred.
@@ -74,3 +91,5 @@ Phase 2: `feat: add minimal Linux kernel module and lifecycle smoke tests`
 Phase 3: `build: add Kbuild verification and kernel diagnostics` (2026-11-03 21:18 IST metadata target)
 
 Phase 4: `feat: demonstrate safe kernel heap allocation and cleanup` (2026-11-04 21:36 IST metadata target)
+
+Phase 5: `feat: add fault-injected module initialization rollback` (2026-11-05 21:52 IST metadata target)
