@@ -21,8 +21,9 @@ class LifecycleFailureTests(unittest.TestCase):
     def test_failure_script_probes_both_cases(self):
         self.assertIn("for scenario in 1 2", SCRIPT)
         self.assertIn("fail_step=$scenario", SCRIPT)
-    def test_no_netfilter_yet(self):
-        self.assertNotIn("nf_register_net_hook", SOURCE)
+    def test_hook_registration_failure_has_cleanup(self):
+        self.assertIn("goto err_free_label;", SOURCE)
+        self.assertIn("nf_unregister_net_hook", SOURCE)
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: GPL-2.0
-/* Phase 5: acquire resources in order; release them in reverse order. */
+/* Phase 6: observe IPv4 packets through Netfilter; never block them. */
 #include <linux/errno.h>
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/printk.h>
 #include <linux/slab.h>
 #include <linux/string.h>
+#include <linux/netfilter.h>
+#include <linux/netfilter_ipv4.h>
+#include <linux/skbuff.h>
+#include <net/net_namespace.h>
 
 #define NETFW_MESSAGE_SIZE 128
 #define NETFW_LABEL_SIZE 32
@@ -13,6 +17,20 @@
 static char *netfw_message;
 static char *netfw_label;
 /* 0: normal, 1: fail before first allocation, 2: fail after first. */
+static unsigned int netfw_observe(void *priv, struct sk_buff *skb,
+                                  const struct nf_hook_state *state)
+{
+    /* Phase 6 only: no packet dereference, allocation, logging, or drops. */
+    return NF_ACCEPT;
+}
+
+static struct nf_hook_ops netfw_hook = {
+    .hook = netfw_observe,
+    .pf = NFPROTO_IPV4,
+    .hooknum = NF_INET_PRE_ROUTING,
+    .priority = NF_IP_PRI_FILTER,
+};
+
 static int fail_step;
 module_param(fail_step, int, 0444);
 MODULE_PARM_DESC(fail_step, "Demo only: force init failure at step 1 or 2");
@@ -48,10 +66,18 @@ static int __init netfw_hello_init(void)
         goto err_free_message;
     }
     strscpy(netfw_label, "phase5", NETFW_LABEL_SIZE);
-    pr_info("netfw_hello: %s; label=%s; no packets filtered\n",
+    err = nf_register_net_hook(&init_net, &netfw_hook);
+    if (err) {
+        pr_err("netfw_hello: hook registration failed (%d)\n", err);
+        goto err_free_label;
+    }
+    pr_info("netfw_hello: %s; label=%s; IPv4 observe-only hook active\n",
             netfw_message, netfw_label);
     return 0;
 
+err_free_label:
+    kfree(netfw_label);
+    netfw_label = NULL;
 err_free_message:
     kfree(netfw_message);
     netfw_message = NULL;
@@ -60,6 +86,7 @@ err_free_message:
 
 static void __exit netfw_hello_exit(void)
 {
+    nf_unregister_net_hook(&init_net, &netfw_hook);
     kfree(netfw_label);
     netfw_label = NULL;
     kfree(netfw_message);
@@ -71,5 +98,5 @@ module_init(netfw_hello_init);
 module_exit(netfw_hello_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("NETFW learning project");
-MODULE_DESCRIPTION("Phase 5 multi-resource initialization and unwind demo");
-MODULE_VERSION("0.5");
+MODULE_DESCRIPTION("Phase 6 observe-only IPv4 Netfilter hook");
+MODULE_VERSION("0.6");

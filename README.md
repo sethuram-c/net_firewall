@@ -86,3 +86,19 @@ sudo journalctl -k -b --no-pager | grep netfw_hello
 It checks that the module is not loaded afterward; only log inspection plus more
 advanced runtime tooling can provide stronger assurance against memory leaks.
 Never use these tests on an important system; kernel modules have full kernel privileges.
+
+## Phase 6 — Observe-only IPv4 Netfilter hook
+
+`kernel/netfw_hello.c` now registers an IPv4 `NF_INET_PRE_ROUTING` hook in the **initial network namespace** (`init_net`). Every callback returns `NF_ACCEPT`: no packet inspection, dropping, or logging occurs on the packet path. This is a registration/lifecycle learning milestone, **not a functioning firewall yet**.
+
+On Fedora (preferably a VM):
+
+```bash
+make clean && make && make verify-build
+make check
+sudo ./scripts/test_failure_paths.sh
+sudo ./scripts/test_netfilter_observe.sh
+sudo journalctl -k -b --no-pager | grep netfw_hello
+```
+
+`PRE_ROUTING` covers incoming IPv4 packets, not locally generated `LOCAL_OUT` traffic. The script deliberately tests registration and cleanup rather than claiming packet observation counts. Module insertion requires a compatible Fedora kernel, kernel-devel and any applicable Secure Boot signing/trust. The personal learning PDF is kept outside Git.

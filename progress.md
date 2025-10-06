@@ -79,8 +79,25 @@
 - [ ] Explain reverse-order teardown and ownership after failed initialization
 - [ ] Commit Phase 5 source and documentation
 
+## Phase 6 — Netfilter architecture and observe-only hook
+**Status:** Source complete; no-root tests passed; Fedora runtime verification pending.
+
+**Modified:** `kernel/netfw_hello.c`, `Makefile`, `README.md`, `progress.md`, three earlier source tests that assumed no hook existed.
+**Added:** `tests/test_netfilter_hook_source.py`, `scripts/test_netfilter_observe.sh`.
+
+**Concepts:** packet journey; PRE_ROUTING vs LOCAL_IN/FORWARD/LOCAL_OUT/POST_ROUTING; `nf_hook_ops`; `NF_ACCEPT`; initial network namespace; hook registration/unregistration and error unwinding.
+
+**Acceptance checklist:**
+- [ ] Review personal Phase 6 learning PDF (not committed)
+- [ ] `make clean && make && make verify-build` on Fedora
+- [ ] `make check` passes 26 tests
+- [ ] `sudo ./scripts/test_failure_paths.sh` verifies injected failures
+- [ ] `sudo ./scripts/test_netfilter_observe.sh` loads/unloads safely
+- [ ] Explain why locally generated IPv4 does not enter PRE_ROUTING
+- [ ] Commit Phase 6 changes
+
 ## Up next
-Phase 6: Netfilter architecture and hook concepts (packet inspection starts after that).
+Phase 7: inspect skb and IPv4 header metadata safely (observe only).
 
 ## Commit convention
 Phase N planned calendar day is November N, 2026 (N <= 30), then December N-30. Each has a distinct selected after-21:00 IST metadata timestamp. These can be set explicitly with Git environment variables; they do not prove when work actually occurred.
@@ -93,3 +110,5 @@ Phase 3: `build: add Kbuild verification and kernel diagnostics` (2026-11-03 21:
 Phase 4: `feat: demonstrate safe kernel heap allocation and cleanup` (2026-11-04 21:36 IST metadata target)
 
 Phase 5: `feat: add fault-injected module initialization rollback` (2026-11-05 21:52 IST metadata target)
+
+Phase 6: `feat: register accept-only IPv4 Netfilter pre-routing hook` (2026-11-06 21:27 IST metadata target)

@@ -11,7 +11,7 @@ all:
 clean:
 	$(MAKE) -C $(KDIR) M=$(PWD) clean
 check:
-	bash -n scripts/check_env.sh scripts/test_module.sh scripts/inspect_module.sh scripts/test_failure_paths.sh
+	bash -n scripts/check_env.sh scripts/test_module.sh scripts/inspect_module.sh scripts/test_failure_paths.sh scripts/test_netfilter_observe.sh
 	python3 -m unittest discover -s tests -p 'test_*.py' -v
 info:
 	@printf 'Running kernel: %s\nKbuild directory: %s\nSource: kernel/netfw_hello.c\n' "$$(uname -r)" '$(KDIR)'

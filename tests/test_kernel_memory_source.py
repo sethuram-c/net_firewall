@@ -17,8 +17,8 @@ class KernelMemorySourceTests(unittest.TestCase):
     def test_copy_bounded(self):
         self.assertIn("strscpy(netfw_message,", SOURCE)
         self.assertNotIn("strcpy(", SOURCE)
-    def test_does_not_register_packet_hook(self):
-        self.assertNotIn("nf_register_net_hook", SOURCE)
+    def test_observation_does_not_drop_packets(self):
+        self.assertIn("return NF_ACCEPT;", SOURCE)
     def test_allocated_string_is_used(self):
         self.assertIn('pr_info("netfw_hello: %s;', SOURCE)
 
