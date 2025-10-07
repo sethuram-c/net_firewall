@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0
-/* Phase 6: observe IPv4 packets through Netfilter; never block them. */
+/* Phase 7: safely inspect IPv4 metadata through Netfilter; never block. */
 #include <linux/errno.h>
 #include <linux/init.h>
 #include <linux/module.h>
@@ -9,6 +9,8 @@
 #include <linux/netfilter.h>
 #include <linux/netfilter_ipv4.h>
 #include <linux/skbuff.h>
+#include <linux/ip.h>
+#include <linux/if_ether.h>
 #include <net/net_namespace.h>
 
 #define NETFW_MESSAGE_SIZE 128
@@ -17,10 +19,39 @@
 static char *netfw_message;
 static char *netfw_label;
 /* 0: normal, 1: fail before first allocation, 2: fail after first. */
+/* skb data may be fragmented/non-linear: copy header bytes, never dereference
+ * skb->data as an unverified struct iphdr. The hook is read-only/fail-open.
+ */
 static unsigned int netfw_observe(void *priv, struct sk_buff *skb,
                                   const struct nf_hook_state *state)
 {
-    /* Phase 6 only: no packet dereference, allocation, logging, or drops. */
+    struct iphdr iph_buf;
+    const struct iphdr *iph;
+    int offset;
+    unsigned int header_len;
+    unsigned int wire_len;
+
+    if (!skb)
+        return NF_ACCEPT;
+
+    offset = skb_network_offset(skb);
+    if (offset < 0 || offset > skb->len ||
+        skb->len - offset < sizeof(iph_buf))
+        return NF_ACCEPT;
+
+    iph = skb_header_pointer(skb, offset, sizeof(iph_buf), &iph_buf);
+    if (!iph || iph->version != 4 || iph->ihl < 5)
+        return NF_ACCEPT;
+
+    header_len = (unsigned int)iph->ihl * 4;
+    wire_len = ntohs(iph->tot_len);
+    if (header_len > skb->len - offset || wire_len < header_len ||
+        wire_len > skb->len - offset)
+        return NF_ACCEPT;
+
+    /* Metadata only; no transport header access until later phases. */
+    pr_info_ratelimited("netfw_hello: IPv4 %pI4 -> %pI4 proto=%u len=%u\n",
+                        &iph->saddr, &iph->daddr, iph->protocol, wire_len);
     return NF_ACCEPT;
 }
 
@@ -65,7 +96,7 @@ static int __init netfw_hello_init(void)
         pr_err("netfw_hello: kmalloc failed for label\n");
         goto err_free_message;
     }
-    strscpy(netfw_label, "phase5", NETFW_LABEL_SIZE);
+    strscpy(netfw_label, "phase7", NETFW_LABEL_SIZE);
     err = nf_register_net_hook(&init_net, &netfw_hook);
     if (err) {
         pr_err("netfw_hello: hook registration failed (%d)\n", err);
@@ -98,5 +129,5 @@ module_init(netfw_hello_init);
 module_exit(netfw_hello_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("NETFW learning project");
-MODULE_DESCRIPTION("Phase 6 observe-only IPv4 Netfilter hook");
-MODULE_VERSION("0.6");
+MODULE_DESCRIPTION("Phase 7 safe IPv4 metadata observer");
+MODULE_VERSION("0.7");

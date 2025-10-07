@@ -102,3 +102,21 @@ sudo journalctl -k -b --no-pager | grep netfw_hello
 ```
 
 `PRE_ROUTING` covers incoming IPv4 packets, not locally generated `LOCAL_OUT` traffic. The script deliberately tests registration and cleanup rather than claiming packet observation counts. Module insertion requires a compatible Fedora kernel, kernel-devel and any applicable Secure Boot signing/trust. The personal learning PDF is kept outside Git.
+
+
+## Phase 7: safe IPv4 metadata observation
+
+The PRE_ROUTING hook now uses `skb_network_offset` and `skb_header_pointer` to
+copy a safe IPv4 header view, checks version, IHL, total length, and buffer
+bounds, then uses **rate-limited** kernel logging of IPv4 source/destination,
+protocol and packet length. The hook still returns `NF_ACCEPT` on **every**
+path. This is learning/diagnostic code, **not** packet validation or a firewall
+policy. Nonlinear packet buffers are permitted; no TCP/UDP parsing yet.
+
+On a Fedora VM run `make clean && make && make verify-build && make check`,
+then `sudo ./scripts/test_ipv4_observe.sh`. Inspect with
+`sudo journalctl -k -b --no-pager | grep netfw_hello`. A localhost ping may
+not pass through IPv4 PRE_ROUTING in the way a packet entering an interface
+does; use a second namespace / veth setup in a later integration phase.
+If module signature enforcement prevents loading, do not disable Secure Boot
+on your main system; use a signed module or test VM.

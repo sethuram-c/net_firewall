@@ -96,8 +96,29 @@
 - [ ] Explain why locally generated IPv4 does not enter PRE_ROUTING
 - [ ] Commit Phase 6 changes
 
+## Phase 7 — Safe sk_buff and IPv4 header inspection
+**Status:** Source implemented; no-root tests passed; Fedora kernel compilation and runtime verification pending.
+
+**Modified:** `kernel/netfw_hello.c`, `Makefile`, `README.md`, `progress.md`.
+**Added:** `tests/test_ipv4_header_source.py`, `scripts/test_ipv4_observe.sh`.
+
+**Concepts:** non-linear sk_buff; network-header offsets; `skb_header_pointer()`;
+IPv4 version/IHL/total length; network byte order; `%pI4`; rate-limited logging;
+fail-open observation with no per-packet memory allocation.
+
+**Acceptance checklist:**
+- [ ] Read personal Phase 7 learning PDF (not committed)
+- [ ] `make clean && make && make verify-build` on Fedora
+- [ ] `make check` passes all 33 source-level tests
+- [ ] `sudo ./scripts/test_failure_paths.sh` continues to pass
+- [ ] `sudo ./scripts/test_ipv4_observe.sh` load/unload succeeds
+- [ ] Inspect journal for IPv4 header metadata when ingress traffic is seen
+- [ ] Explain why skb data cannot always be directly cast to an IP header
+- [ ] Commit Phase 7 files
+
 ## Up next
-Phase 7: inspect skb and IPv4 header metadata safely (observe only).
+Phase 8: parse TCP and UDP headers safely.
+
 
 ## Commit convention
 Phase N planned calendar day is November N, 2026 (N <= 30), then December N-30. Each has a distinct selected after-21:00 IST metadata timestamp. These can be set explicitly with Git environment variables; they do not prove when work actually occurred.
@@ -112,3 +133,5 @@ Phase 4: `feat: demonstrate safe kernel heap allocation and cleanup` (2026-11-04
 Phase 5: `feat: add fault-injected module initialization rollback` (2026-11-05 21:52 IST metadata target)
 
 Phase 6: `feat: register accept-only IPv4 Netfilter pre-routing hook` (2026-11-06 21:27 IST metadata target)
+
+Phase 7: `feat: safely inspect IPv4 headers in Netfilter observer` (2026-11-07 21:44 IST metadata target)
