@@ -116,8 +116,28 @@ fail-open observation with no per-packet memory allocation.
 - [ ] Explain why skb data cannot always be directly cast to an IP header
 - [ ] Commit Phase 7 files
 
+## Phase 8 — Safe TCP and UDP port parsing
+**Status:** Implemented; source tests passed locally; Fedora build and runtime still pending.
+
+**Modified:** `kernel/netfw_hello.c`, `Makefile`, `README.md`, `progress.md`.
+**Added:** `tests/test_transport_header_source.py`, `scripts/test_transport_observe.sh`.
+
+**Concepts:** layer-4 headers; TCP data offset; UDP datagram length; IPv4 fragments;
+network-order ports; non-linear skb bounded reads; observe-only behavior.
+
+**Acceptance checklist:**
+- [ ] Review personal Phase 8 PDF (not included in Git)
+- [ ] Fedora: `make clean && make && make verify-build`
+- [ ] Run `make check` (expect 42 source tests)
+  - Phase 8 fix: the fragment-offset test accepts `0x1FFF` or `IP_OFFSET`; Fedora compilation and runtime passed in the reported run.
+- [ ] Run earlier failure injection script
+- [ ] Run `sudo ./scripts/test_transport_observe.sh`
+- [ ] Read kernel log for TCP/UDP ports (may require namespace ingress)
+- [ ] Explain why later fragments have no ports
+- [ ] Commit Phase 8 changes
+
 ## Up next
-Phase 8: parse TCP and UDP headers safely.
+Phase 9: handle ICMP and malformed packets safely.
 
 
 ## Commit convention
@@ -135,3 +155,5 @@ Phase 5: `feat: add fault-injected module initialization rollback` (2026-11-05 2
 Phase 6: `feat: register accept-only IPv4 Netfilter pre-routing hook` (2026-11-06 21:27 IST metadata target)
 
 Phase 7: `feat: safely inspect IPv4 headers in Netfilter observer` (2026-11-07 21:44 IST metadata target)
+
+Phase 8: `feat: inspect TCP and UDP ports in IPv4 observer` (2026-11-08 21:33 IST metadata target)

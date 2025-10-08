@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0
-/* Phase 7: safely inspect IPv4 metadata through Netfilter; never block. */
+/* Phase 8: safe IPv4 + TCP/UDP header parsing; all packets accepted. */
 #include <linux/errno.h>
 #include <linux/init.h>
 #include <linux/module.h>
@@ -10,8 +10,12 @@
 #include <linux/netfilter_ipv4.h>
 #include <linux/skbuff.h>
 #include <linux/ip.h>
+#include <linux/tcp.h>
+#include <linux/udp.h>
+#include <linux/in.h>
 #include <linux/if_ether.h>
 #include <net/net_namespace.h>
+#include <net/ip.h>
 
 #define NETFW_MESSAGE_SIZE 128
 #define NETFW_LABEL_SIZE 32
@@ -30,6 +34,13 @@ static unsigned int netfw_observe(void *priv, struct sk_buff *skb,
     int offset;
     unsigned int header_len;
     unsigned int wire_len;
+    unsigned int transport_offset;
+    unsigned int transport_len;
+    unsigned int frag_offset;
+    struct tcphdr tcp_buf;
+    struct udphdr udp_buf;
+    const struct tcphdr *tcp;
+    const struct udphdr *udp;
 
     if (!skb)
         return NF_ACCEPT;
@@ -49,9 +60,34 @@ static unsigned int netfw_observe(void *priv, struct sk_buff *skb,
         wire_len > skb->len - offset)
         return NF_ACCEPT;
 
-    /* Metadata only; no transport header access until later phases. */
-    pr_info_ratelimited("netfw_hello: IPv4 %pI4 -> %pI4 proto=%u len=%u\n",
-                        &iph->saddr, &iph->daddr, iph->protocol, wire_len);
+    /* Non-first IPv4 fragments have no TCP/UDP header at this offset. */
+    frag_offset = ntohs(iph->frag_off) & 0x1FFF;
+    if (frag_offset) {
+        pr_info_ratelimited("netfw_hello: IPv4 fragment %pI4 -> %pI4 proto=%u (no ports)\n",
+                            &iph->saddr, &iph->daddr, iph->protocol);
+        return NF_ACCEPT;
+    }
+
+    transport_offset = offset + header_len;
+    transport_len = wire_len - header_len;
+    if (iph->protocol == IPPROTO_TCP && transport_len >= sizeof(tcp_buf)) {
+        tcp = skb_header_pointer(skb, transport_offset, sizeof(tcp_buf), &tcp_buf);
+        if (tcp && tcp->doff >= 5 &&
+            (unsigned int)tcp->doff * 4 <= transport_len)
+            pr_info_ratelimited("netfw_hello: TCP %pI4:%u -> %pI4:%u\n",
+                                &iph->saddr, ntohs(tcp->source),
+                                &iph->daddr, ntohs(tcp->dest));
+    } else if (iph->protocol == IPPROTO_UDP && transport_len >= sizeof(udp_buf)) {
+        udp = skb_header_pointer(skb, transport_offset, sizeof(udp_buf), &udp_buf);
+        if (udp && ntohs(udp->len) >= sizeof(udp_buf) &&
+            ntohs(udp->len) <= transport_len)
+            pr_info_ratelimited("netfw_hello: UDP %pI4:%u -> %pI4:%u\n",
+                                &iph->saddr, ntohs(udp->source),
+                                &iph->daddr, ntohs(udp->dest));
+    } else {
+        pr_info_ratelimited("netfw_hello: IPv4 %pI4 -> %pI4 proto=%u len=%u\n",
+                            &iph->saddr, &iph->daddr, iph->protocol, wire_len);
+    }
     return NF_ACCEPT;
 }
 
@@ -96,7 +132,7 @@ static int __init netfw_hello_init(void)
         pr_err("netfw_hello: kmalloc failed for label\n");
         goto err_free_message;
     }
-    strscpy(netfw_label, "phase7", NETFW_LABEL_SIZE);
+    strscpy(netfw_label, "phase8", NETFW_LABEL_SIZE);
     err = nf_register_net_hook(&init_net, &netfw_hook);
     if (err) {
         pr_err("netfw_hello: hook registration failed (%d)\n", err);
@@ -129,5 +165,5 @@ module_init(netfw_hello_init);
 module_exit(netfw_hello_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("NETFW learning project");
-MODULE_DESCRIPTION("Phase 7 safe IPv4 metadata observer");
-MODULE_VERSION("0.7");
+MODULE_DESCRIPTION("Phase 8 TCP/UDP port metadata observer");
+MODULE_VERSION("0.8");

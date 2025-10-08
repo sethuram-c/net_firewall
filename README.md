@@ -120,3 +120,8 @@ not pass through IPv4 PRE_ROUTING in the way a packet entering an interface
 does; use a second namespace / veth setup in a later integration phase.
 If module signature enforcement prevents loading, do not disable Secure Boot
 on your main system; use a signed module or test VM.
+
+## Phase 8 — TCP and UDP header observation
+After verifying on Fedora: `make clean && make && make verify-build && make check`; then `sudo ./scripts/test_transport_observe.sh` and inspect `sudo journalctl -k -b --no-pager | grep netfw_hello`.
+
+TCP and UDP ports are logged from valid, non-later IPv4 fragments. Header reads use `skb_header_pointer`, bounds are checked against IPv4 total length, and ports are converted from network byte order. The callback **always returns NF_ACCEPT**. Source-level tests cannot prove runtime packet parsing is correct.
