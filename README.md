@@ -125,3 +125,12 @@ on your main system; use a signed module or test VM.
 After verifying on Fedora: `make clean && make && make verify-build && make check`; then `sudo ./scripts/test_transport_observe.sh` and inspect `sudo journalctl -k -b --no-pager | grep netfw_hello`.
 
 TCP and UDP ports are logged from valid, non-later IPv4 fragments. Header reads use `skb_header_pointer`, bounds are checked against IPv4 total length, and ports are converted from network byte order. The callback **always returns NF_ACCEPT**. Source-level tests cannot prove runtime packet parsing is correct.
+
+
+## Phase 9 — ICMP inspection & malformed IPv4 safety
+
+The IPv4 PRE_ROUTING observer now parses ICMP `type` and `code` using `skb_header_pointer` after verifying the declared IPv4 payload has enough bytes. Non-initial fragments are skipped. TCP/UDP support is unchanged. Every path still returns `NF_ACCEPT`. This module is NOT a traffic blocker.
+
+Fedora: `make clean && make && make verify-build && make check`; then `sudo ./scripts/test_failure_paths.sh` and `sudo ./scripts/test_icmp_observe.sh`. View events using `sudo journalctl -k -b --no-pager | grep netfw_hello`. Run kernel modules in a VM or disposable testing environment.
+
+`make check` is a *source-regression* suite: it does not compile the module. Kernel compilation is a separate mandatory acceptance check.

@@ -117,7 +117,7 @@ fail-open observation with no per-packet memory allocation.
 - [ ] Commit Phase 7 files
 
 ## Phase 8 — Safe TCP and UDP port parsing
-**Status:** Implemented; source tests passed locally; Fedora build and runtime still pending.
+**Status:** Completed on Fedora: user confirmed successful build, 42/42 tests, both runtime scripts, and commit `7eb0c2d`.
 
 **Modified:** `kernel/netfw_hello.c`, `Makefile`, `README.md`, `progress.md`.
 **Added:** `tests/test_transport_header_source.py`, `scripts/test_transport_observe.sh`.
@@ -157,3 +157,26 @@ Phase 6: `feat: register accept-only IPv4 Netfilter pre-routing hook` (2026-11-0
 Phase 7: `feat: safely inspect IPv4 headers in Netfilter observer` (2026-11-07 21:44 IST metadata target)
 
 Phase 8: `feat: inspect TCP and UDP ports in IPv4 observer` (2026-11-08 21:33 IST metadata target)
+
+
+## Phase 9 — ICMP and malformed IPv4 safety
+**Status:** Implemented. Local source-level checks passed; Fedora kernel compilation and runtime pending.
+
+**Modified:** `kernel/netfw_hello.c`, `Makefile`, `README.md`, `progress.md`.
+**Added:** `tests/test_icmp_safety_source.py`, `scripts/test_icmp_observe.sh`.
+
+**Concepts:** ICMP type/code; safe `skb_header_pointer` access; IPv4 IHL/total-length checks; packet fragmentation; safe fail-open observer.
+
+**Acceptance:**
+- [ ] Read Phase 9 personal learning PDF (excluded from repository)
+- [ ] `make clean && make && make verify-build` on Fedora
+- [ ] `make check` (51 Python source tests)
+- [ ] `sudo ./scripts/test_failure_paths.sh`
+- [ ] `sudo ./scripts/test_icmp_observe.sh`
+- [ ] Inspect ICMP type/code logs if packet traverses PRE_ROUTING
+- [ ] Explain why a passing source test is not proof of kernel compilation
+- [ ] Commit Phase 9
+
+**Phase 9 commit:** `feat: observe ICMP metadata with bounded packet-header reads` (2026-11-09 21:49 IST metadata target).
+
+**Next:** Phase 10 — safe ACCEPT/DROP verdict demonstration in a controlled namespace, without affecting host traffic.
