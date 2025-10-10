@@ -8,10 +8,11 @@ class NetfilterHookSourceTests(unittest.TestCase):
     def test_hook_is_ipv4_prerouting(self):
         self.assertIn(".pf = NFPROTO_IPV4", SOURCE)
         self.assertIn(".hooknum = NF_INET_PRE_ROUTING", SOURCE)
-    def test_hook_always_accepts(self):
+    def test_hook_accepts_except_strict_lab_drop(self):
         callback = SOURCE.split("static unsigned int netfw_observe", 1)[1].split("static struct nf_hook_ops", 1)[0]
         self.assertIn("return NF_ACCEPT;", callback)
-        self.assertNotIn("NF_DROP", callback)
+        self.assertIn("return NF_DROP;", callback)
+        self.assertIn("if (lab_drop && state && state->in", callback)
         self.assertNotIn("pr_info(", callback)
     def test_registration_is_checked(self):
         self.assertIn("err = nf_register_net_hook(&init_net, &netfw_hook)", SOURCE)

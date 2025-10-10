@@ -17,9 +17,10 @@ class ModuleSourceTests(unittest.TestCase):
     def test_gpl_metadata(self):
         self.assertIn('MODULE_LICENSE("GPL")', self.source)
 
-    def test_packet_verdict_is_accept_only(self):
+    def test_packet_verdict_is_opt_in_lab_only(self):
         self.assertIn("nf_register_net_hook", self.source)
-        self.assertNotIn("return NF_DROP", self.source)
+        self.assertIn("return NF_DROP", self.source)
+        self.assertIn("static bool lab_drop;", self.source)
 
     def test_external_kbuild(self):
         self.assertIn("obj-m += kernel/netfw_hello.o", self.makefile)

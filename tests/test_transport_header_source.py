@@ -32,8 +32,9 @@ class TransportSourceTests(unittest.TestCase):
         self.assertIn("ntohs(tcp->dest)", CODE)
         self.assertIn("ntohs(udp->source)", CODE)
         self.assertIn("ntohs(udp->dest)", CODE)
-    def test_accept_only(self):
-        self.assertNotIn("NF_DROP", CODE)
+    def test_lab_only_drop(self):
+        self.assertIn("return NF_DROP;", CODE)
+        self.assertIn("lab_drop && state && state->in", CODE)
         self.assertGreaterEqual(CODE.count("return NF_ACCEPT;"), 3)
     def test_runtime_script_unloads(self):
         self.assertIn("trap cleanup EXIT", SCRIPT)

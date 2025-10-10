@@ -180,3 +180,24 @@ Phase 8: `feat: inspect TCP and UDP ports in IPv4 observer` (2026-11-08 21:33 IS
 **Phase 9 commit:** `feat: observe ICMP metadata with bounded packet-header reads` (2026-11-09 21:49 IST metadata target).
 
 **Next:** Phase 10 — safe ACCEPT/DROP verdict demonstration in a controlled namespace, without affecting host traffic.
+
+
+## Phase 10 — Controlled Netfilter ACCEPT/DROP
+**Status:** Implemented; source tests passed. Fedora build and namespace runtime require local verification.
+
+**Modified:** `kernel/netfw_hello.c`, `Makefile`, `README.md`, `progress.md`, and five legacy assertion tests.
+**Added:** `scripts/test_lab_drop.sh`, `tests/test_lab_drop_source.py`.
+
+**Concepts:** `NF_ACCEPT` vs `NF_DROP`; default-deny vs opt-in lab mode; Netfilter PRE_ROUTING and ingress interface; exact IPv4 destination/UDP port check; IPv4 fragments; namespace/veth isolation; test negative and positive controls.
+
+**Acceptance:**
+- [ ] `make clean && make check-build` on Fedora
+- [ ] `make check` (all previous plus Phase 10 tests)
+- [ ] `sudo ./scripts/test_failure_paths.sh`
+- [ ] `sudo ./scripts/test_lab_drop.sh` inside a disposable Fedora VM
+- [ ] Verify UDP/54322 arrives and UDP/54321 is dropped
+- [ ] Verify module unloaded and `nfwt10h` removed
+- [ ] Read the private Phase 10 learning PDF
+- [ ] Commit Phase 10, November 10, 2026 at 21:38 IST metadata timestamp
+
+**Next:** Phase 11 — deterministic packet verdict tests and traffic policy regression.

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0
-/* Phase 9: bounded IPv4/TCP/UDP/ICMP header inspection; accept-only. */
+/* Phase 10: bounded packet inspection; optional isolated-interface UDP drop. */
 #include <linux/errno.h>
 #include <linux/init.h>
 #include <linux/module.h>
@@ -15,17 +15,25 @@
 #include <linux/icmp.h>
 #include <linux/in.h>
 #include <linux/if_ether.h>
+#include <linux/netdevice.h>
 #include <net/net_namespace.h>
 #include <net/ip.h>
 
 #define NETFW_MESSAGE_SIZE 128
 #define NETFW_LABEL_SIZE 32
+#define NETFW_LAB_IFACE "nfwt10h"
+#define NETFW_LAB_IPV4 0xC6120002U /* 198.18.0.2 in host integer order */
+#define NETFW_LAB_UDP_PORT 54321
 
 static char *netfw_message;
 static char *netfw_label;
+/* Explicit opt-in; immutable while loaded. Default behavior remains accept. */
+static bool lab_drop;
+module_param(lab_drop, bool, 0444);
+MODULE_PARM_DESC(lab_drop, "Drop only UDP/54321 to 198.18.0.2 on nfwt10h");
 /* 0: normal, 1: fail before first allocation, 2: fail after first. */
 /* skb data may be fragmented/non-linear: copy header bytes, never dereference
- * skb->data as an unverified struct iphdr. The hook is read-only/fail-open.
+ * skb->data as an unverified struct iphdr. Malformed traffic is accepted.
  */
 static unsigned int netfw_observe(void *priv, struct sk_buff *skb,
                                   const struct nf_hook_state *state)
@@ -84,10 +92,24 @@ static unsigned int netfw_observe(void *priv, struct sk_buff *skb,
     } else if (iph->protocol == IPPROTO_UDP && transport_len >= sizeof(udp_buf)) {
         udp = skb_header_pointer(skb, transport_offset, sizeof(udp_buf), &udp_buf);
         if (udp && ntohs(udp->len) >= sizeof(udp_buf) &&
-            ntohs(udp->len) <= transport_len)
+            ntohs(udp->len) <= transport_len) {
+            /* Match all fields before dropping: immutable opt-in + dedicated
+             * lab ingress interface + destination IP + UDP port.
+             * No packet modification and no dynamic allocation in hook.
+             */
+            if (lab_drop && state && state->in &&
+                !strncmp(state->in->name, NETFW_LAB_IFACE, IFNAMSIZ) &&
+                ntohl(iph->daddr) == NETFW_LAB_IPV4 &&
+                ntohs(udp->dest) == NETFW_LAB_UDP_PORT) {
+                pr_info_ratelimited("netfw_hello: LAB_DROP UDP %pI4:%u -> %pI4:%u\n",
+                                    &iph->saddr, ntohs(udp->source),
+                                    &iph->daddr, ntohs(udp->dest));
+                return NF_DROP;
+            }
             pr_info_ratelimited("netfw_hello: UDP %pI4:%u -> %pI4:%u\n",
                                 &iph->saddr, ntohs(udp->source),
                                 &iph->daddr, ntohs(udp->dest));
+        }
     } else if (iph->protocol == IPPROTO_ICMP &&
                transport_len >= sizeof(icmp_buf)) {
         icmp = skb_header_pointer(skb, transport_offset,
@@ -144,14 +166,14 @@ static int __init netfw_hello_init(void)
         pr_err("netfw_hello: kmalloc failed for label\n");
         goto err_free_message;
     }
-    strscpy(netfw_label, "phase9", NETFW_LABEL_SIZE);
+    strscpy(netfw_label, "phase10", NETFW_LABEL_SIZE);
     err = nf_register_net_hook(&init_net, &netfw_hook);
     if (err) {
         pr_err("netfw_hello: hook registration failed (%d)\n", err);
         goto err_free_label;
     }
-    pr_info("netfw_hello: %s; label=%s; IPv4 observe-only hook active\n",
-            netfw_message, netfw_label);
+    pr_info("netfw_hello: %s; label=%s; IPv4 hook active (lab_drop=%u)\n",
+            netfw_message, netfw_label, lab_drop);
     return 0;
 
 err_free_label:
@@ -177,5 +199,5 @@ module_init(netfw_hello_init);
 module_exit(netfw_hello_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("NETFW learning project");
-MODULE_DESCRIPTION("Phase 9 IPv4 TCP UDP ICMP observer");
-MODULE_VERSION("0.9");
+MODULE_DESCRIPTION("Phase 10 isolated-interface UDP ACCEPT/DROP lab");
+MODULE_VERSION("0.10");

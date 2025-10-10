@@ -20,9 +20,9 @@ class IPv4HeaderSourceTests(unittest.TestCase):
         self.assertIn("iph->ihl < 5",CALLBACK)
         self.assertIn("wire_len < header_len",CALLBACK)
         self.assertIn("wire_len > skb->len - offset",CALLBACK)
-    def test_observer_only(self):
+    def test_observer_accepts_except_lab_rule(self):
         self.assertIn("return NF_ACCEPT;",CALLBACK)
-        self.assertNotIn("NF_DROP",CALLBACK)
+        self.assertIn("return NF_DROP;",CALLBACK)
         self.assertNotIn("kmalloc(",CALLBACK)
     def test_bounded_logging(self):
         self.assertIn("pr_info_ratelimited",CALLBACK)

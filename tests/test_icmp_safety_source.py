@@ -22,8 +22,9 @@ class IcmpSafetySourceTests(unittest.TestCase):
     def test_noninitial_fragments_skip_l4(self):
         self.assertIn("if (frag_offset)", CODE)
         self.assertIn("return NF_ACCEPT;", CODE)
-    def test_still_accept_only(self):
-        self.assertNotIn("NF_DROP", CODE)
+    def test_lab_opt_in_drop_only(self):
+        self.assertIn("return NF_DROP;", CODE)
+        self.assertIn("lab_drop && state && state->in", CODE)
         self.assertIn(".hooknum = NF_INET_PRE_ROUTING", CODE)
     def test_no_per_packet_heap_alloc(self):
         hook = CODE.split("static unsigned int netfw_observe",1)[1].split("static struct nf_hook_ops",1)[0]

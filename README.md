@@ -134,3 +134,11 @@ The IPv4 PRE_ROUTING observer now parses ICMP `type` and `code` using `skb_heade
 Fedora: `make clean && make && make verify-build && make check`; then `sudo ./scripts/test_failure_paths.sh` and `sudo ./scripts/test_icmp_observe.sh`. View events using `sudo journalctl -k -b --no-pager | grep netfw_hello`. Run kernel modules in a VM or disposable testing environment.
 
 `make check` is a *source-regression* suite: it does not compile the module. Kernel compilation is a separate mandatory acceptance check.
+
+
+## Phase 10 — Controlled ACCEPT/DROP lab
+Default is `lab_drop=0`; the hook still accepts all packets. The opt-in `lab_drop=1` mode drops **only** valid initial IPv4 UDP packets arriving on `nfwt10h`, targeting `198.18.0.2:54321`. Other packets are accepted. This is intentionally not a configurable firewall rule engine.
+
+Fedora VM prerequisites: `sudo dnf install iproute python3 iputils` (plus existing kernel-devel/toolchain). Run `make clean && make check-build`, then `sudo ./scripts/test_lab_drop.sh` in a disposable VM with console access. The script creates a temporary network namespace and veth, confirms UDP/54322 ACCEPT and UDP/54321 DROP using a real receiving socket, unloads the module, and removes the test network resources. `ip netns` requires root and kernel support. Avoid using this on a remote host.
+
+Never enable lab mode against a production or remote host. Existing network/firewalld rules may independently block the probe and invalidate the ACCEPT assertion. The source-level `make check` does not compile a `.ko`; `make check-build` is the combined build check.
