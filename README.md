@@ -142,3 +142,30 @@ Default is `lab_drop=0`; the hook still accepts all packets. The opt-in `lab_dro
 Fedora VM prerequisites: `sudo dnf install iproute python3 iputils` (plus existing kernel-devel/toolchain). Run `make clean && make check-build`, then `sudo ./scripts/test_lab_drop.sh` in a disposable VM with console access. The script creates a temporary network namespace and veth, confirms UDP/54322 ACCEPT and UDP/54321 DROP using a real receiving socket, unloads the module, and removes the test network resources. `ip netns` requires root and kernel support. Avoid using this on a remote host.
 
 Never enable lab mode against a production or remote host. Existing network/firewalld rules may independently block the probe and invalidate the ACCEPT assertion. The source-level `make check` does not compile a `.ko`; `make check-build` is the combined build check.
+
+## Phase 11 - verdict and teardown regression (Fedora VM only)
+
+Phase 10's user-reported lab delivered the correct packets but left the module
+loaded. Phase 11 replaces an `lsmod | grep -q` check in a `pipefail` script
+with a direct `/sys/module/netfw_hello` membership check. In a long pipeline
+`grep -q` may close its input early and cause an upstream SIGPIPE; with
+`set -o pipefail`, a true match can therefore appear as a failed pipeline.
+
+`test_lab_drop.sh` now accepts `LAB_DROP_MODE=0` (no packets dropped) and
+`LAB_DROP_MODE=1` (only the isolated UDP/54321 case dropped); default is 1.
+`test_verdict_regression.sh` runs both modes, checks delivery, and asserts
+that module, temporary veth and namespace are absent **after** each run.
+
+```bash
+make clean && make check-build
+sudo rmmod netfw_hello  # only if OUR test module is currently loaded
+sudo ./scripts/test_failure_paths.sh
+sudo ./scripts/test_verdict_regression.sh
+lsmod | grep '^netfw_hello' || echo 'Module unloaded'
+ip link show nfwt10h  # should report non-existent device
+sudo ip netns list
+```
+
+These tests have root privileges and modify network namespaces; run only in
+a disposable Fedora VM with console access. `make check` is not a replacement
+for the Fedora runtime regression.

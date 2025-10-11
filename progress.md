@@ -201,3 +201,24 @@ Phase 8: `feat: inspect TCP and UDP ports in IPv4 observer` (2026-11-08 21:33 IS
 - [ ] Commit Phase 10, November 10, 2026 at 21:38 IST metadata timestamp
 
 **Next:** Phase 11 — deterministic packet verdict tests and traffic policy regression.
+
+
+## Phase 11 - deterministic verdict and teardown regression
+**Status:** Implemented; unprivileged Python tests validated. Fedora runtime must be verified.
+
+**Phase 10 user results:** 60/60 tests, Fedora build, UDP/54322 ACCEPT, UDP/54321 DROP, and clean veth/namespace. Module remained loaded unexpectedly; Phase 11 addresses cleanup reliability. Phase 10 commit: `8e1048e`.
+
+**Files:** modified `scripts/test_lab_drop.sh`, `Makefile`, `README.md`, `progress.md`; added `scripts/test_verdict_regression.sh`, `tests/test_verdict_regression_source.py`.
+
+**Concepts:** Linux shell `pipefail` and `grep -q`/SIGPIPE, kernel module presence through sysfs, fail-closed test harness checks, positive/negative test controls, idempotent cleanup, opt-in rule regression.
+
+**Acceptance:**
+- [ ] `make clean && make check-build` on Fedora
+- [ ] `sudo rmmod netfw_hello` if already loaded; verify absent
+- [ ] `sudo ./scripts/test_failure_paths.sh`
+- [ ] `sudo ./scripts/test_verdict_regression.sh` (both rule modes)
+- [ ] Confirm no module (`lsmod`), no veth (`ip link show nfwt10h`), and no `nfwt10-*` namespace (`ip netns list`)
+- [ ] Read Phase 11 private learning PDF
+- [ ] Commit Phase 11 (planned Git metadata November 11, 2026, 21:46 IST)
+
+**Next:** Phase 12 - C firewall rule data structure.

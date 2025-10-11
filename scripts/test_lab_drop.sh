@@ -5,14 +5,18 @@ cd "$(dirname "$0")/.."
 [[ ${EUID} -eq 0 ]] || { echo "Run with sudo" >&2; exit 1; }
 for cmd in ip python3 insmod rmmod; do command -v "$cmd" >/dev/null || { echo "Missing: $cmd" >&2; exit 1; }; done
 [[ -f kernel/netfw_hello.ko ]] || { echo "Run make first" >&2; exit 1; }
+LAB_DROP_MODE="${LAB_DROP_MODE:-1}"
+case "$LAB_DROP_MODE" in 0|1) ;; *) echo "LAB_DROP_MODE must be 0 or 1" >&2; exit 2;; esac
 NS="nfwt10-$$"
 HOST_IF=nfwt10h
 PEER_IF=nfwt10n
-if ip link show "$HOST_IF" >/dev/null 2>&1 || lsmod | grep -q '^netfw_hello '; then
+if ip link show "$HOST_IF" >/dev/null 2>&1 || [[ -d /sys/module/netfw_hello ]]; then
   echo "Refusing: module loaded or lab interface already exists" >&2; exit 1
 fi
 cleanup() {
-  if lsmod | grep -q '^netfw_hello '; then rmmod netfw_hello || true; fi
+  if [[ -d /sys/module/netfw_hello ]]; then
+    rmmod netfw_hello || echo "WARN: failed to unload netfw_hello" >&2
+  fi
   ip netns del "$NS" 2>/dev/null || true
   ip link del "$HOST_IF" 2>/dev/null || true
 }
@@ -26,13 +30,18 @@ ip -n "$NS" addr add 198.18.0.1/30 dev "$PEER_IF"
 ip -n "$NS" link set lo up
 ip -n "$NS" link set "$PEER_IF" up
 # install hook only AFTER dedicated test interface exists
-insmod kernel/netfw_hello.ko lab_drop=1
+if [[ "$LAB_DROP_MODE" == 1 ]]; then
+  insmod kernel/netfw_hello.ko lab_drop=1
+else
+  insmod kernel/netfw_hello.ko lab_drop=0
+fi
 # A real UDP receiver on the host checks packets, not just source text.
 # Sender is executed inside the namespace, guaranteeing ingress at nfwt10h.
-LAB_NS="$NS" python3 - <<'PYTEST'
+LAB_NS="$NS" LAB_DROP_MODE="$LAB_DROP_MODE" python3 - <<'PYTEST'
 import os, socket, subprocess
 ns=os.environ['LAB_NS']
-for port, must_arrive in ((54322, True), (54321, False)):
+drop_enabled = os.environ["LAB_DROP_MODE"] == "1"
+for port, must_arrive in ((54322, True), (54321, not drop_enabled)):
     receiver=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
     receiver.bind(('198.18.0.2',port)); receiver.settimeout(1.5)
     try:
@@ -48,4 +57,4 @@ for port, must_arrive in ((54322, True), (54321, False)):
     finally:
         receiver.close()
 PYTEST
-printf 'PASS: isolated Netfilter ACCEPT/DROP lab; resources cleaned on exit\n'
+printf 'PASS: isolated Netfilter verdict mode=%s; cleanup runs on exit\n' "$LAB_DROP_MODE"
