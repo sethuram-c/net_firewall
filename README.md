@@ -169,3 +169,10 @@ sudo ip netns list
 These tests have root privileges and modify network namespaces; run only in
 a disposable Fedora VM with console access. `make check` is not a replacement
 for the Fedora runtime regression.
+
+
+## Phase 12 — rule data model (not yet active)
+
+`kernel/netfw_rule.h` defines `struct netfw_rule`, explicit matching flags, and ACCEPT/DROP actions. IPv4 addresses and masks use `__be32` (network byte order); port fields are host-order integers. Interface names are limited to `IFNAMSIZ`. The packet hook still uses the Phase 10 lab-only policy: declaring a rule does **not** enforce it. Rule evaluation begins in later phases.
+
+Fedora validation: `make clean && make check-build`, followed in a disposable VM by `sudo ./scripts/test_failure_paths.sh` and `sudo ./scripts/test_verdict_regression.sh`. Check cleanup using `test ! -d /sys/module/netfw_hello`, `ip link show nfwt10h`, and `sudo ip netns list`.

@@ -204,7 +204,7 @@ Phase 8: `feat: inspect TCP and UDP ports in IPv4 observer` (2026-11-08 21:33 IS
 
 
 ## Phase 11 - deterministic verdict and teardown regression
-**Status:** Implemented; unprivileged Python tests validated. Fedora runtime must be verified.
+**Status:** Verified by user on Fedora: 69/69 Python checks, successful kernel build, both packet verdict modes, clean teardown; commit `1e74075`.
 
 **Phase 10 user results:** 60/60 tests, Fedora build, UDP/54322 ACCEPT, UDP/54321 DROP, and clean veth/namespace. Module remained loaded unexpectedly; Phase 11 addresses cleanup reliability. Phase 10 commit: `8e1048e`.
 
@@ -222,3 +222,23 @@ Phase 8: `feat: inspect TCP and UDP ports in IPv4 observer` (2026-11-08 21:33 IS
 - [ ] Commit Phase 11 (planned Git metadata November 11, 2026, 21:46 IST)
 
 **Next:** Phase 12 - C firewall rule data structure.
+
+
+## Phase 12 — Firewall rule representation in C
+**Status:** Implemented and source tests passed; Fedora Kbuild/runtime verification pending.
+
+**Changes:** `kernel/netfw_rule.h` added; `kernel/netfw_hello.c` includes it and logs descriptor size; `tests/test_rule_structure_source.py` added; README updated.
+
+**Concepts:** typed `struct` layouts, enums, per-field match flags, `__be32` network order, host-order ports, interface string bounds, separation of rule data from packet decisions.
+
+**Safety:** No rule evaluation added; existing opt-in lab drop remains unchanged.
+
+**Fedora acceptance:**
+- [ ] `make clean && make check-build` (expected 78 Python checks)
+- [ ] `sudo ./scripts/test_failure_paths.sh`
+- [ ] `sudo ./scripts/test_verdict_regression.sh` (both modes)
+- [ ] Verify no module/interface/test namespace left
+- [ ] Read personal PDF outside repository
+- [ ] Commit Phase 12 with November 12, 2026 at 21:29 IST metadata
+
+**Next:** Phase 13 — source IPv4 address matching.

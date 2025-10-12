@@ -18,6 +18,7 @@
 #include <linux/netdevice.h>
 #include <net/net_namespace.h>
 #include <net/ip.h>
+#include "netfw_rule.h"
 
 #define NETFW_MESSAGE_SIZE 128
 #define NETFW_LABEL_SIZE 32
@@ -166,7 +167,10 @@ static int __init netfw_hello_init(void)
         pr_err("netfw_hello: kmalloc failed for label\n");
         goto err_free_message;
     }
-    strscpy(netfw_label, "phase10", NETFW_LABEL_SIZE);
+    strscpy(netfw_label, "phase12", NETFW_LABEL_SIZE);
+    /* Phase 12 declares the rule model only; packet policy is unchanged. */
+    pr_info("netfw_hello: rule descriptor ready (%zu bytes; inactive)\n",
+            sizeof(struct netfw_rule));
     err = nf_register_net_hook(&init_net, &netfw_hook);
     if (err) {
         pr_err("netfw_hello: hook registration failed (%d)\n", err);
@@ -199,5 +203,5 @@ module_init(netfw_hello_init);
 module_exit(netfw_hello_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("NETFW learning project");
-MODULE_DESCRIPTION("Phase 10 isolated-interface UDP ACCEPT/DROP lab");
-MODULE_VERSION("0.10");
+MODULE_DESCRIPTION("Phase 12 rule descriptor; isolated UDP verdict lab retained");
+MODULE_VERSION("0.12");
