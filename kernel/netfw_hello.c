@@ -19,6 +19,7 @@
 #include <net/net_namespace.h>
 #include <net/ip.h>
 #include "netfw_rule.h"
+#include "netfw_match.h"
 
 #define NETFW_MESSAGE_SIZE 128
 #define NETFW_LABEL_SIZE 32
@@ -169,6 +170,20 @@ static int __init netfw_hello_init(void)
     }
     strscpy(netfw_label, "phase12", NETFW_LABEL_SIZE);
     /* Phase 12 declares the rule model only; packet policy is unchanged. */
+    /* Phase 13 example: exercise the reusable matcher without changing
+     * packet verdicts. Real rule evaluation is introduced later.
+     */
+    {
+        const struct netfw_rule demo = {
+            .match_flags = NETFW_MATCH_SRC_IP,
+            .src_ip = 0,
+            .src_mask = 0,
+        };
+        if (!netfw_match_src_ipv4(&demo, 0)) {
+            err = -EINVAL;
+            goto err_free_label;
+        }
+    }
     pr_info("netfw_hello: rule descriptor ready (%zu bytes; inactive)\n",
             sizeof(struct netfw_rule));
     err = nf_register_net_hook(&init_net, &netfw_hook);

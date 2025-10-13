@@ -176,3 +176,12 @@ for the Fedora runtime regression.
 `kernel/netfw_rule.h` defines `struct netfw_rule`, explicit matching flags, and ACCEPT/DROP actions. IPv4 addresses and masks use `__be32` (network byte order); port fields are host-order integers. Interface names are limited to `IFNAMSIZ`. The packet hook still uses the Phase 10 lab-only policy: declaring a rule does **not** enforce it. Rule evaluation begins in later phases.
 
 Fedora validation: `make clean && make check-build`, followed in a disposable VM by `sudo ./scripts/test_failure_paths.sh` and `sudo ./scripts/test_verdict_regression.sh`. Check cleanup using `test ! -d /sys/module/netfw_hello`, `ip link show nfwt10h`, and `sudo ip netns list`.
+
+
+## Phase 13 — Source IPv4 matching (reusable helper)
+
+`kernel/netfw_match.h` introduces `netfw_match_src_ipv4(rule, packet_src)` for optional source IPv4 matching. With `NETFW_MATCH_SRC_IP` clear it returns true (wildcard). When enabled, both network-order addresses are ANDed with the network-order mask and compared: `(packet_src & mask) == (rule_src & mask)`. A `/32` mask means exact host; `/24` matches a subnet; `/0` matches all addresses. Set the flag deliberately: a zero field must not be confused with a disabled flag.
+
+The module executes a harmless zero-mask example during initialization solely to compile/type-check use of the helper; **no packet verdict consumes a rule yet**. The existing opt-in UDP lab DROP remains the only active drop case. Later phases will wire helpers to the Netfilter callback.
+
+On Fedora, run `make clean && make check-build`, `sudo ./scripts/test_failure_paths.sh`, and `sudo ./scripts/test_verdict_regression.sh`. After the regression verify the module/interface/namespace were removed. Source-level Python tests do not prove the module builds: use `make check-build`.

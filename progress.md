@@ -242,3 +242,23 @@ Phase 8: `feat: inspect TCP and UDP ports in IPv4 observer` (2026-11-08 21:33 IS
 - [ ] Commit Phase 12 with November 12, 2026 at 21:29 IST metadata
 
 **Next:** Phase 13 — source IPv4 address matching.
+
+
+## Phase 13 — Source IPv4 address matcher
+**Status:** Implemented; local source tests passed. Fedora kernel build and live verdict regression pending.
+
+**Changes:** Added `kernel/netfw_match.h` with a reusable inline source IP/mask matcher; integrated a harmless initialization-time compiler smoke example into `kernel/netfw_hello.c`; added `tests/test_source_ipv4_match.py`; updated README.
+
+**Concepts:** CIDR prefix and mask; network byte order; match-flags versus zero-valued fields; wildcard semantics; side-effect-free inline helpers; matching independent from firewall verdict.
+
+**Safety:** Current Netfilter verdicts unchanged. Phase 13 helper is not yet used for per-packet filtering.
+
+**Fedora acceptance:**
+- [ ] `make clean && make check-build` (expected 87 tests)
+- [ ] `sudo ./scripts/test_failure_paths.sh`
+- [ ] `sudo ./scripts/test_verdict_regression.sh` (both lab modes)
+- [ ] Verify no module, veth, or test namespace remains
+- [ ] Review separate learning PDF (not tracked in repository)
+- [ ] Commit Phase 13 with requested November 13, 2026, 21:42 IST metadata
+
+**Next:** Phase 14 — destination IPv4 address and CIDR matching.
