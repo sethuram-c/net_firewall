@@ -185,3 +185,10 @@ Fedora validation: `make clean && make check-build`, followed in a disposable VM
 The module executes a harmless zero-mask example during initialization solely to compile/type-check use of the helper; **no packet verdict consumes a rule yet**. The existing opt-in UDP lab DROP remains the only active drop case. Later phases will wire helpers to the Netfilter callback.
 
 On Fedora, run `make clean && make check-build`, `sudo ./scripts/test_failure_paths.sh`, and `sudo ./scripts/test_verdict_regression.sh`. After the regression verify the module/interface/namespace were removed. Source-level Python tests do not prove the module builds: use `make check-build`.
+
+
+## Phase 14 — Destination IPv4 CIDR matcher
+
+`kernel/netfw_match.h` now includes `netfw_match_dst_ipv4(rule, packet_dst)`. The helper returns true when `NETFW_MATCH_DST_IP` is unset (destination wildcard). When set, it compares `(packet_dst & dst_mask) == (dst_ip & dst_mask)` in network byte order; `/32` matches one address, `/24` a subnet, `/0` any destination. Source matching remains unchanged. `kernel/netfw_hello.c` type-checks the new helper with an inert example during initialization. The hook does **not** yet evaluate dynamic rules; only the isolated opt-in lab rule can DROP packets.
+
+On Fedora run `make clean && make check-build` (96 expected Python tests), then `sudo ./scripts/test_failure_paths.sh`, `sudo ./scripts/test_verdict_regression.sh` and confirm the test resources are removed. The learning PDF is personal and intentionally not in the repository.

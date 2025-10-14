@@ -184,6 +184,20 @@ static int __init netfw_hello_init(void)
             goto err_free_label;
         }
     }
+    /* Phase 14: type-check destination matching on a harmless demo rule.
+     * No packet verdict evaluates these rule helpers yet.
+     */
+    {
+        const struct netfw_rule demo_dst = {
+            .match_flags = NETFW_MATCH_DST_IP,
+            .dst_ip = 0,
+            .dst_mask = 0,
+        };
+        if (!netfw_match_dst_ipv4(&demo_dst, 0)) {
+            err = -EINVAL;
+            goto err_free_label;
+        }
+    }
     pr_info("netfw_hello: rule descriptor ready (%zu bytes; inactive)\n",
             sizeof(struct netfw_rule));
     err = nf_register_net_hook(&init_net, &netfw_hook);

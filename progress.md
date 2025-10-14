@@ -262,3 +262,21 @@ Phase 8: `feat: inspect TCP and UDP ports in IPv4 observer` (2026-11-08 21:33 IS
 - [ ] Commit Phase 13 with requested November 13, 2026, 21:42 IST metadata
 
 **Next:** Phase 14 — destination IPv4 address and CIDR matching.
+
+
+## Phase 14 — Destination IPv4 and CIDR matcher
+**Status:** Implemented; local source-level tests and shell syntax passed. Fedora compilation and live regression pending.
+
+**Changes:** Added `netfw_match_dst_ipv4()` to `kernel/netfw_match.h`; added an initialization-only compiler smoke call; added `tests/test_destination_ipv4_match.py`; updated README. No packet verdict changes.
+
+**Concepts:** Destination subnet matching, CIDR prefixes, network byte order, field match flags and wildcard semantics, separation between matching and enforcement.
+
+**Fedora acceptance:**
+- [ ] `make clean && make check-build` (expected 96 Python checks)
+- [ ] `sudo ./scripts/test_failure_paths.sh`
+- [ ] `sudo ./scripts/test_verdict_regression.sh` (ACCEPT and opt-in DROP)
+- [ ] Verify module, interface and namespace absent after tests
+- [ ] Review personal learning PDF outside repository
+- [ ] Commit with November 14, 2026 at 21:37 IST Git metadata
+
+**Next:** Phase 15 — TCP/UDP source and destination port matching.

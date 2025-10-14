@@ -20,4 +20,17 @@ static inline bool netfw_match_src_ipv4(const struct netfw_rule *rule,
            (rule->src_ip & rule->src_mask);
 }
 
+/* Match an optional destination IPv4 network; the flag is the wildcard
+ * indicator, not a zero address. Addresses and masks are network order.
+ */
+static inline bool netfw_match_dst_ipv4(const struct netfw_rule *rule,
+                                        __be32 packet_dst)
+{
+    if (!(rule->match_flags & NETFW_MATCH_DST_IP))
+        return true;
+
+    return (packet_dst & rule->dst_mask) ==
+           (rule->dst_ip & rule->dst_mask);
+}
+
 #endif /* NETFW_MATCH_H */
