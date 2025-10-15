@@ -280,3 +280,23 @@ Phase 8: `feat: inspect TCP and UDP ports in IPv4 observer` (2026-11-08 21:33 IS
 - [ ] Commit with November 14, 2026 at 21:37 IST Git metadata
 
 **Next:** Phase 15 — TCP/UDP source and destination port matching.
+
+
+## Phase 15 — TCP/UDP port matching
+**Status:** Implemented; source-level checks passed locally. Fedora Kbuild and live regression pending.
+
+**Changes:** Added `netfw_match_ports()` with optional source/destination port conditions, TCP/UDP protocol guard and byte-order conversion; added harmless module-init smoke exercise; created nine source tests; updated README.
+
+**Concepts:** Host versus network byte order; source/destination ports; TCP/UDP-only semantics; wildcard flags; combined conditions; separation of matching from verdict enforcement.
+
+**Safety:** The helper is not in the Netfilter packet callback. Existing opt-in UDP lab drop is unchanged.
+
+**Fedora acceptance:**
+- [ ] `make clean && make check-build` (105 checks expected)
+- [ ] `sudo ./scripts/test_failure_paths.sh`
+- [ ] `sudo ./scripts/test_verdict_regression.sh` (ACCEPT and DROP modes)
+- [ ] Confirm module unloaded, veth absent, test namespace removed
+- [ ] Review separate personal PDF
+- [ ] Commit with November 15, 2026 21:54 IST metadata
+
+**Next:** Phase 16 — protocol matching and combined rule predicates.

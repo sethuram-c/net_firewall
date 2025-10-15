@@ -198,6 +198,25 @@ static int __init netfw_hello_init(void)
             goto err_free_label;
         }
     }
+    /* Phase 15: exercise port wildcard/match semantics during init only.
+     * This is NOT consulted by the packet hook; lab verdicts are unchanged.
+     */
+    {
+        const struct netfw_rule demo_ports = {
+            .match_flags = NETFW_MATCH_SRC_PORT | NETFW_MATCH_DST_PORT,
+            .src_port = 12345,
+            .dst_port = 443,
+        };
+        if (!netfw_match_ports(&demo_ports, IPPROTO_TCP,
+                               htons(12345), htons(443)) ||
+            netfw_match_ports(&demo_ports, IPPROTO_UDP,
+                              htons(12345), htons(444)) ||
+            netfw_match_ports(&demo_ports, IPPROTO_ICMP,
+                              htons(12345), htons(443))) {
+            err = -EINVAL;
+            goto err_free_label;
+        }
+    }
     pr_info("netfw_hello: rule descriptor ready (%zu bytes; inactive)\n",
             sizeof(struct netfw_rule));
     err = nf_register_net_hook(&init_net, &netfw_hook);

@@ -192,3 +192,29 @@ On Fedora, run `make clean && make check-build`, `sudo ./scripts/test_failure_pa
 `kernel/netfw_match.h` now includes `netfw_match_dst_ipv4(rule, packet_dst)`. The helper returns true when `NETFW_MATCH_DST_IP` is unset (destination wildcard). When set, it compares `(packet_dst & dst_mask) == (dst_ip & dst_mask)` in network byte order; `/32` matches one address, `/24` a subnet, `/0` any destination. Source matching remains unchanged. `kernel/netfw_hello.c` type-checks the new helper with an inert example during initialization. The hook does **not** yet evaluate dynamic rules; only the isolated opt-in lab rule can DROP packets.
 
 On Fedora run `make clean && make check-build` (96 expected Python tests), then `sudo ./scripts/test_failure_paths.sh`, `sudo ./scripts/test_verdict_regression.sh` and confirm the test resources are removed. The learning PDF is personal and intentionally not in the repository.
+
+
+## Phase 15 - TCP/UDP source and destination port matching
+
+`kernel/netfw_match.h` now implements `netfw_match_ports()`. Rule ports are
+**host order** (`u16`), packet ports **network order** (`__be16`), so comparisons
+convert with `ntohs()`. Match flags determine wildcards: port zero is a valid
+port, not an implicit wildcard. When either port match is enabled, only TCP
+and UDP can match. Both enabled conditions must be satisfied (AND semantics).
+
+This helper is tested by an **initialization-only smoke check**, not yet
+called in the packet hook. The opt-in lab UDP DROP is unchanged.
+
+Fedora acceptance:
+
+```bash
+make clean && make check-build   # 105 source checks plus kernel compilation
+sudo ./scripts/test_failure_paths.sh
+sudo ./scripts/test_verdict_regression.sh
+lsmod | grep '^netfw_hello' || echo 'Module unloaded'
+ip link show nfwt10h             # expected: does not exist
+sudo ip netns list               # expected: empty for test namespace
+```
+
+Use a disposable VM for root-required tests. The phase PDF is personal study
+material and should not be committed.
