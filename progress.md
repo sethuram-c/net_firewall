@@ -300,3 +300,21 @@ Phase 8: `feat: inspect TCP and UDP ports in IPv4 observer` (2026-11-08 21:33 IS
 - [ ] Commit with November 15, 2026 21:54 IST metadata
 
 **Next:** Phase 16 — protocol matching and combined rule predicates.
+
+
+## Phase 16 — Protocol and combined predicate
+**Status:** Implemented; local source tests passed, Fedora build and runtime verification pending.
+
+**Changes:** Added optional protocol matching and a conjunctive IPv4/source/destination/port predicate in `kernel/netfw_match.h`; an init-only positive/negative smoke check; nine new Python source tests; README guidance. No packet-hook policy change.
+
+**Concepts:** Protocol wildcard flags, short-circuit AND evaluation, prevalidated packet fields, host/network byte order, and separation of match from action. Incoming interface matching and actual configurable rule evaluation are NOT included yet.
+
+**Fedora acceptance:**
+- [ ] `make clean && make check-build` (114 tests expected)
+- [ ] `sudo bash scripts/test_failure_paths.sh`
+- [ ] `sudo bash scripts/test_verdict_regression.sh`
+- [ ] Verify `netfw_hello` unloaded, `nfwt10h` absent and no test namespace
+- [ ] Review separate personal Phase 16 PDF (not committed)
+- [ ] Commit Phase 16 using November 16, 2026, 21:32 IST metadata
+
+**Next:** Phase 17 — ordered rule evaluation and default policy.

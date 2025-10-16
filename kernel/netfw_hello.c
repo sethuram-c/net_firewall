@@ -217,6 +217,23 @@ static int __init netfw_hello_init(void)
             goto err_free_label;
         }
     }
+    /* Phase 16: combined predicate smoke checks; never used in hook. */
+    {
+        const struct netfw_rule demo_rule = {
+            .match_flags = NETFW_MATCH_PROTOCOL | NETFW_MATCH_DST_PORT,
+            .protocol = IPPROTO_TCP,
+            .dst_port = 443,
+        };
+        if (!netfw_match_packet(&demo_rule, 0, 0, IPPROTO_TCP,
+                                0, htons(443)) ||
+            netfw_match_packet(&demo_rule, 0, 0, IPPROTO_UDP,
+                               0, htons(443)) ||
+            netfw_match_packet(&demo_rule, 0, 0, IPPROTO_TCP,
+                               0, htons(80))) {
+            err = -EINVAL;
+            goto err_free_label;
+        }
+    }
     pr_info("netfw_hello: rule descriptor ready (%zu bytes; inactive)\n",
             sizeof(struct netfw_rule));
     err = nf_register_net_hook(&init_net, &netfw_hook);

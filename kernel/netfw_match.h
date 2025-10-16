@@ -65,4 +65,35 @@ static inline bool netfw_match_ports(const struct netfw_rule *rule,
     return true;
 }
 
+/* Phase 16: optional protocol field and conjunctive rule predicate.
+ * Call only with packet fields already extracted from validated headers.
+ * Absent flags are wildcards, present fields are combined with AND.
+ * A port-enabled rule cannot match an ICMP packet.
+ * This is a pure helper; it does not choose NF_ACCEPT/NF_DROP.
+ */
+static inline bool netfw_match_protocol(const struct netfw_rule *rule,
+                                         u8 packet_protocol)
+{
+    if (!(rule->match_flags & NETFW_MATCH_PROTOCOL))
+        return true;
+
+    return rule->protocol == packet_protocol;
+}
+
+static inline bool netfw_match_packet(const struct netfw_rule *rule,
+                                      __be32 packet_src, __be32 packet_dst,
+                                      u8 packet_protocol,
+                                      __be16 packet_src_port,
+                                      __be16 packet_dst_port)
+{
+    if (!rule)
+        return false;
+
+    return netfw_match_src_ipv4(rule, packet_src) &&
+           netfw_match_dst_ipv4(rule, packet_dst) &&
+           netfw_match_protocol(rule, packet_protocol) &&
+           netfw_match_ports(rule, packet_protocol,
+                             packet_src_port, packet_dst_port);
+}
+
 #endif /* NETFW_MATCH_H */

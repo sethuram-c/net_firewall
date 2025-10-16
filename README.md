@@ -218,3 +218,22 @@ sudo ip netns list               # expected: empty for test namespace
 
 Use a disposable VM for root-required tests. The phase PDF is personal study
 material and should not be committed.
+
+
+## Phase 16 — Protocol and combined rule predicates
+
+`netfw_match_protocol(rule, protocol)` honors `NETFW_MATCH_PROTOCOL`: with the
+flag clear it matches any protocol; with the flag set it requires exact equality.
+`netfw_match_packet()` combines source CIDR, destination CIDR, protocol, and
+TCP/UDP ports using logical AND. A null rule pointer is rejected. Ports remain
+network-order on the packet side and host-order in rule data. Only call the
+helper with fields already validated and extracted safely from packet headers.
+**Interface matching is deliberately deferred** to a later step because the
+`NETFW_MATCH_IN_IFACE` field is not part of this predicate yet.
+
+The combined matcher runs only as a harmless initialization smoke check; it
+is not called by the Netfilter hook, and the opt-in lab verdicts are unchanged.
+
+Fedora validation: `make clean && make check-build` (114 Python tests), then
+`sudo bash scripts/test_failure_paths.sh` and
+`sudo bash scripts/test_verdict_regression.sh` in a disposable VM.
