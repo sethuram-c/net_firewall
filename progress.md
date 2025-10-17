@@ -318,3 +318,22 @@ Phase 8: `feat: inspect TCP and UDP ports in IPv4 observer` (2026-11-08 21:33 IS
 - [ ] Commit Phase 16 using November 16, 2026, 21:32 IST metadata
 
 **Next:** Phase 17 — ordered rule evaluation and default policy.
+
+## Phase 17 - Ordered rule evaluation and default policy
+**Status:** Implemented; local Python/source tests complete; Fedora build and
+runtime regression pending.
+
+**Changes:** Added `kernel/netfw_policy.h` with ordered, first-match rule
+selection and configurable default; preserved safety for empty/null rules,
+invalid actions and unsupported interface filters. Added init-only smoke
+cases and nine Python tests. Live Netfilter behavior is unchanged.
+
+**Fedora acceptance:**
+- [ ] `make clean && make check-build` (123 tests expected)
+- [ ] `sudo bash scripts/test_failure_paths.sh`
+- [ ] `sudo bash scripts/test_verdict_regression.sh` (ACCEPT and DROP)
+- [ ] Confirm `netfw_hello` unloaded, `nfwt10h` absent and no test namespace
+- [ ] Study separate personal Phase 17 learning PDF (not committed)
+- [ ] Commit November 17, 2026, 21:43 IST metadata
+
+**Next:** Phase 18 - bounded rule storage and synchronization.

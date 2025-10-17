@@ -20,6 +20,7 @@
 #include <net/ip.h>
 #include "netfw_rule.h"
 #include "netfw_match.h"
+#include "netfw_policy.h"
 
 #define NETFW_MESSAGE_SIZE 128
 #define NETFW_LABEL_SIZE 32
@@ -234,6 +235,32 @@ static int __init netfw_hello_init(void)
             goto err_free_label;
         }
     }
+/* Phase 17: self-test ordered first-match and no-match fallback.
+ * This stack-only demo is deliberately NOT consulted by the hook. */
+{
+    const struct netfw_rule demo_rules[] = {
+        { .match_flags = NETFW_MATCH_PROTOCOL | NETFW_MATCH_DST_PORT,
+          .protocol = IPPROTO_UDP, .dst_port = 54321,
+          .action = NETFW_RULE_DROP },
+        { .match_flags = NETFW_MATCH_PROTOCOL,
+          .protocol = IPPROTO_UDP, .action = NETFW_RULE_ACCEPT },
+    };
+
+    if (netfw_evaluate_rules(demo_rules, ARRAY_SIZE(demo_rules),
+                             NETFW_RULE_ACCEPT, 0, 0, IPPROTO_UDP,
+                             0, htons(54321)) != NETFW_RULE_DROP ||
+        netfw_evaluate_rules(demo_rules, ARRAY_SIZE(demo_rules),
+                             NETFW_RULE_DROP, 0, 0, IPPROTO_UDP,
+                             0, htons(54322)) != NETFW_RULE_ACCEPT ||
+        netfw_evaluate_rules(demo_rules, ARRAY_SIZE(demo_rules),
+                             NETFW_RULE_ACCEPT, 0, 0, IPPROTO_TCP,
+                             0, htons(54321)) != NETFW_RULE_ACCEPT ||
+        netfw_evaluate_rules(NULL, 0, NETFW_RULE_DROP,
+                             0, 0, IPPROTO_TCP, 0, 0) != NETFW_RULE_DROP) {
+        err = -EINVAL;
+        goto err_free_label;
+    }
+}
     pr_info("netfw_hello: rule descriptor ready (%zu bytes; inactive)\n",
             sizeof(struct netfw_rule));
     err = nf_register_net_hook(&init_net, &netfw_hook);

@@ -237,3 +237,19 @@ is not called by the Netfilter hook, and the opt-in lab verdicts are unchanged.
 Fedora validation: `make clean && make check-build` (114 Python tests), then
 `sudo bash scripts/test_failure_paths.sh` and
 `sudo bash scripts/test_verdict_regression.sh` in a disposable VM.
+
+## Phase 17 - ordered rule evaluation and default policy
+
+`kernel/netfw_policy.h` introduces a pure `netfw_evaluate_rules()` helper.
+Rules are checked from index 0 upward, and the first complete match supplies
+its ACCEPT/DROP action; no match returns the explicitly provided default.
+A null/empty table is safe. Unsupported ingress-interface flags are skipped,
+not silently ignored. Invalid rule actions are skipped; an invalid default
+falls back to ACCEPT for safety. Configuration validation will be improved
+before rules become active. The example two-rule table runs only during module
+initialization and is never consulted by the live Netfilter hook. The existing
+`lab_drop` opt-in behavior remains unchanged.
+
+Fedora: `make clean && make check-build`, then
+`sudo bash scripts/test_failure_paths.sh` and
+`sudo bash scripts/test_verdict_regression.sh` in a disposable VM.
