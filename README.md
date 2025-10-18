@@ -253,3 +253,12 @@ initialization and is never consulted by the live Netfilter hook. The existing
 Fedora: `make clean && make check-build`, then
 `sudo bash scripts/test_failure_paths.sh` and
 `sudo bash scripts/test_verdict_regression.sh` in a disposable VM.
+
+### Phase 18: bounded rule storage (inactive demonstration)
+`kernel/netfw_table.h` defines a fixed-capacity (16) table of rule descriptors.
+Validated additions preserve insertion order, reject overflow with `-ENOSPC`,
+and use a bottom-half-safe spinlock shared with reads. A temporary table is
+allocated and exercised **only at module initialization**, then freed before
+Netfilter registration. The table does **not** change live packet policy yet.
+Run `make check-build` on Fedora followed by the existing failure-path and
+verdict-regression scripts. See the separate Phase 18 PDF for concepts.

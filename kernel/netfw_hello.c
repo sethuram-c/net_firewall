@@ -21,6 +21,7 @@
 #include "netfw_rule.h"
 #include "netfw_match.h"
 #include "netfw_policy.h"
+#include "netfw_table.h"
 
 #define NETFW_MESSAGE_SIZE 128
 #define NETFW_LABEL_SIZE 32
@@ -261,6 +262,32 @@ static int __init netfw_hello_init(void)
         goto err_free_label;
     }
 }
+    /* Phase 18: table stays local to init: no live rule mutation yet. */
+    {
+        struct netfw_table *demo_table;
+        const struct netfw_rule drop = {
+            .match_flags = NETFW_MATCH_PROTOCOL | NETFW_MATCH_DST_PORT,
+            .protocol = IPPROTO_UDP, .dst_port = 54321,
+            .action = NETFW_RULE_DROP,
+        };
+
+        demo_table = kmalloc(sizeof(*demo_table), GFP_KERNEL);
+        if (!demo_table) {
+            err = -ENOMEM;
+            goto err_free_label;
+        }
+        netfw_table_init(demo_table, NETFW_RULE_ACCEPT);
+        err = netfw_table_add(demo_table, &drop);
+        if (!err && (netfw_table_evaluate(demo_table, 0, 0,
+                                          IPPROTO_UDP, 0, htons(54321)) != NETFW_RULE_DROP ||
+                     netfw_table_evaluate(demo_table, 0, 0,
+                                          IPPROTO_UDP, 0, htons(54322)) != NETFW_RULE_ACCEPT))
+            err = -EINVAL;
+        netfw_table_clear(demo_table);
+        kfree(demo_table);
+        if (err)
+            goto err_free_label;
+    }
     pr_info("netfw_hello: rule descriptor ready (%zu bytes; inactive)\n",
             sizeof(struct netfw_rule));
     err = nf_register_net_hook(&init_net, &netfw_hook);

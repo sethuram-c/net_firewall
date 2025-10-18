@@ -337,3 +337,23 @@ cases and nine Python tests. Live Netfilter behavior is unchanged.
 - [ ] Commit November 17, 2026, 21:43 IST metadata
 
 **Next:** Phase 18 - bounded rule storage and synchronization.
+
+## Phase 18 - Bounded rule storage and synchronization
+**Status:** Implemented; 132 source tests targeted; Fedora compilation and privileged tests pending.
+
+**Changes:** Added `kernel/netfw_table.h`, a fixed 16-entry rule table with
+`spin_lock_bh()` protecting ordered insertion, count, clearing and evaluation.
+Rejects invalid rule actions, unknown match flags, bad protocol/port combinations,
+and non-terminated interface names. Exceeding capacity returns `-ENOSPC`.
+The module performs an init-only storage/evaluation check; the live Netfilter
+hook still uses the isolated Phase 10 lab DROP only.
+
+**Fedora acceptance:**
+- [ ] `make clean && make check-build` (132 Python tests expected)
+- [ ] `sudo bash scripts/test_failure_paths.sh`
+- [ ] `sudo bash scripts/test_verdict_regression.sh`
+- [ ] Verify module unloaded; interface and namespace removed
+- [ ] Review personal Phase 18 learning PDF (not tracked)
+- [ ] Commit with November 18, 2026, 21:51 IST metadata
+
+**Next:** Phase 19 - stateful connection-tracking concepts.
