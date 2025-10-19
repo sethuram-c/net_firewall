@@ -357,3 +357,25 @@ hook still uses the isolated Phase 10 lab DROP only.
 - [ ] Commit with November 18, 2026, 21:51 IST metadata
 
 **Next:** Phase 19 - stateful connection-tracking concepts.
+
+## Phase 19 - Stateful vs stateless and 5-tuple flow identity
+**Status:** Implemented; 141 source tests targeted; Fedora build/runtime checks pending.
+
+**Changes:** Added `kernel/netfw_flow.h` with TCP/UDP 5-tuple identity,
+forward-direction equality, and reverse-direction equality; init-only smoke
+checks and nine Python tests. No per-packet tracking, mutable state,
+timeouts, or altered hook verdicts in this phase.
+
+**Concepts:** Stateless vs stateful decisions, bidirectional flow identity,
+network byte order, why IP/ports/protocol together identify a flow, and why
+ICMP needs different handling.
+
+**Fedora acceptance:**
+- [ ] `make clean && make check-build` (141 Python tests expected)
+- [ ] `sudo bash scripts/test_failure_paths.sh`
+- [ ] `sudo bash scripts/test_verdict_regression.sh`
+- [ ] Verify module unloaded, lab interface absent, namespace removed
+- [ ] Read personal Phase 19 learning PDF (not committed)
+- [ ] Commit with November 19, 2026, 21:26 IST metadata
+
+**Next:** Phase 20 - hashable 5-tuple keys and connection lookup.

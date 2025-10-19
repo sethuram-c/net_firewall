@@ -262,3 +262,16 @@ allocated and exercised **only at module initialization**, then freed before
 Netfilter registration. The table does **not** change live packet policy yet.
 Run `make check-build` on Fedora followed by the existing failure-path and
 verdict-regression scripts. See the separate Phase 18 PDF for concepts.
+
+
+## Phase 19 - TCP/UDP flow identity (concept foundation)
+`kernel/netfw_flow.h` introduces an immutable five-tuple of source/destination
+IPv4, source/destination transport ports, and L4 protocol. Comparisons work
+in both forward and reverse directions. All endpoint fields use **network byte
+order**, matching packet headers. No state table, timeouts, or acceptance
+policy based on connections exists yet. The module only smoke-tests the helper
+during initialization. ICMP cannot be represented as TCP/UDP ports.
+
+Fedora: `make clean && make check-build`, then
+`sudo bash scripts/test_failure_paths.sh` and
+`sudo bash scripts/test_verdict_regression.sh` in a disposable VM.

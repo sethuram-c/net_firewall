@@ -22,6 +22,7 @@
 #include "netfw_match.h"
 #include "netfw_policy.h"
 #include "netfw_table.h"
+#include "netfw_flow.h"
 
 #define NETFW_MESSAGE_SIZE 128
 #define NETFW_LABEL_SIZE 32
@@ -171,6 +172,29 @@ static int __init netfw_hello_init(void)
         goto err_free_message;
     }
     strscpy(netfw_label, "phase12", NETFW_LABEL_SIZE);
+    /* Phase 19: validate 5-tuple directionality before hook registration.
+     * No connection table exists and no packet verdict is changed.
+     */
+    {
+        const struct netfw_flow_key outgoing = {
+            .src_ip = htonl(0x0a000001), .dst_ip = htonl(0x0a000002),
+            .src_port = htons(41000), .dst_port = htons(443),
+            .protocol = IPPROTO_TCP,
+        };
+        const struct netfw_flow_key incoming = {
+            .src_ip = htonl(0x0a000002), .dst_ip = htonl(0x0a000001),
+            .src_port = htons(443), .dst_port = htons(41000),
+            .protocol = IPPROTO_TCP,
+        };
+        if (!netfw_flow_is_transport(&outgoing) ||
+            !netfw_flow_equal(&outgoing, &outgoing) ||
+            netfw_flow_equal(&outgoing, &incoming) ||
+            !netfw_flow_reverse_equal(&outgoing, &incoming)) {
+            err = -EINVAL;
+            goto err_free_label;
+        }
+    }
+
     /* Phase 12 declares the rule model only; packet policy is unchanged. */
     /* Phase 13 example: exercise the reusable matcher without changing
      * packet verdicts. Real rule evaluation is introduced later.
