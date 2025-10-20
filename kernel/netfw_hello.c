@@ -23,6 +23,7 @@
 #include "netfw_policy.h"
 #include "netfw_table.h"
 #include "netfw_flow.h"
+#include "netfw_conn.h"
 
 #define NETFW_MESSAGE_SIZE 128
 #define NETFW_LABEL_SIZE 32
@@ -309,6 +310,39 @@ static int __init netfw_hello_init(void)
             err = -EINVAL;
         netfw_table_clear(demo_table);
         kfree(demo_table);
+        if (err)
+            goto err_free_label;
+    }
+    /* Phase 20: bounded connection lookup self-test, never used in hook. */
+    {
+        struct netfw_conn_table *demo_conn;
+        const struct netfw_flow_key outgoing = {
+            .src_ip = htonl(0x0a000001), .dst_ip = htonl(0x0a000002),
+            .src_port = htons(41000), .dst_port = htons(443),
+            .protocol = IPPROTO_TCP,
+        };
+        const struct netfw_flow_key incoming = {
+            .src_ip = htonl(0x0a000002), .dst_ip = htonl(0x0a000001),
+            .src_port = htons(443), .dst_port = htons(41000),
+            .protocol = IPPROTO_TCP,
+        };
+        bool reverse = false;
+
+        demo_conn = kmalloc(sizeof(*demo_conn), GFP_KERNEL);
+        if (!demo_conn) {
+            err = -ENOMEM;
+            goto err_free_label;
+        }
+        netfw_conn_init(demo_conn);
+        if (netfw_conn_lookup(demo_conn, &outgoing, NULL) ||
+            netfw_conn_add(demo_conn, &outgoing) ||
+            !netfw_conn_lookup(demo_conn, &outgoing, NULL) ||
+            !netfw_conn_lookup(demo_conn, &incoming, &reverse) ||
+            !reverse || demo_conn->count != 1 ||
+            netfw_conn_add(demo_conn, &incoming) != -EEXIST) {
+            err = -EINVAL;
+        }
+        kfree(demo_conn);
         if (err)
             goto err_free_label;
     }

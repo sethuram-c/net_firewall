@@ -379,3 +379,20 @@ ICMP needs different handling.
 - [ ] Commit with November 19, 2026, 21:26 IST metadata
 
 **Next:** Phase 20 - hashable 5-tuple keys and connection lookup.
+
+## Phase 20 - Bounded connection hash table and flow lookup
+**Status:** Implemented; 150 Python tests targeted; Fedora build and privileged runtime regression pending.
+
+**Changes:** Added `kernel/netfw_conn.h` with 8 hash buckets and 4 fixed slots per bucket (maximum 32 flows). The symmetric bucket hash maps a flow and its reverse to the same bucket. Added duplicate rejection (`-EEXIST`), invalid key rejection (`-EINVAL`), bucket overflow (`-ENOSPC`), and short `spin_lock_bh()` critical sections. Lookup returns a bool and optional reverse-direction flag; never an unlocked entry pointer. Added init-only smoke checks and 9 tests.
+
+**Scope:** Hash table is *not* connected to the packet hook. No timeout, state transitions, or stateful filtering yet. Lab ACCEPT/DROP behavior remains unchanged. Capacity is a theoretical maximum: a bucket may fill before the whole table does.
+
+**Fedora acceptance:**
+- [ ] `make clean && make check-build` (150 tests expected)
+- [ ] `sudo bash scripts/test_failure_paths.sh`
+- [ ] `sudo bash scripts/test_verdict_regression.sh`
+- [ ] Verify module unloaded, `nfwt10h` absent and no namespace left
+- [ ] Read personal Phase 20 learning PDF (not in repo)
+- [ ] Commit with November 20, 2026, 21:47 IST metadata
+
+**Next:** Phase 21 - forward/reverse flow recognition and state metadata.

@@ -275,3 +275,6 @@ during initialization. ICMP cannot be represented as TCP/UDP ports.
 Fedora: `make clean && make check-build`, then
 `sudo bash scripts/test_failure_paths.sh` and
 `sudo bash scripts/test_verdict_regression.sh` in a disposable VM.
+
+### Phase 20: bounded connection hash table (inactive demo)
+`kernel/netfw_conn.h` implements a fixed 8-bucket / four-slots-per-bucket lookup table keyed on the TCP/UDP five-tuple. A symmetric XOR hash puts both directions in the same bucket; full-key equality prevents collisions from becoming false matches. Under `spin_lock_bh()`, insertion rejects duplicates and bucket overflow; lookup returns a boolean and an optional reverse-direction flag. This table is currently instantiated **only during module initialization** for self-tests; no packets are tracked by the hook and live lab decisions are unchanged. Run `make check-build` on Fedora and the existing namespace regression test.
