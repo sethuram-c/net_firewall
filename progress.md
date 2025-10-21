@@ -396,3 +396,19 @@ ICMP needs different handling.
 - [ ] Commit with November 20, 2026, 21:47 IST metadata
 
 **Next:** Phase 21 - forward/reverse flow recognition and state metadata.
+
+
+## Phase 21 - Forward/reverse flow recognition and connection metadata
+**Status:** Implemented; 159 Python tests targeted, Fedora compilation/runtime pending.
+
+**Changes:** Added direction and conceptual state enums, stored NEW state in each hash-table entry, and a lock-protected copy-out `netfw_conn_lookup_info()` API. Preserved Phase 20 lookup signature and the isolated live ACCEPT/DROP lab. Added 9 source tests and initialization-only verification for original/reply direction. Reverse traffic does not advance state.
+
+**Fedora acceptance:**
+- [ ] `make clean && make check-build` (159 tests expected)
+- [ ] `sudo bash scripts/test_failure_paths.sh`
+- [ ] `sudo bash scripts/test_verdict_regression.sh`
+- [ ] Confirm module unloaded, veth removed, and namespace gone
+- [ ] Read separate Phase 21 personal learning PDF (not committed)
+- [ ] Commit with November 21, 2026, 21:34 IST metadata
+
+**Next:** Phase 22 - simplified TCP connection state transitions.

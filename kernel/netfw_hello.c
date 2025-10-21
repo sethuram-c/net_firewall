@@ -327,6 +327,8 @@ static int __init netfw_hello_init(void)
             .protocol = IPPROTO_TCP,
         };
         bool reverse = false;
+        struct netfw_conn_info reply_info;
+        struct netfw_conn_info original_info;
 
         demo_conn = kmalloc(sizeof(*demo_conn), GFP_KERNEL);
         if (!demo_conn) {
@@ -338,7 +340,14 @@ static int __init netfw_hello_init(void)
             netfw_conn_add(demo_conn, &outgoing) ||
             !netfw_conn_lookup(demo_conn, &outgoing, NULL) ||
             !netfw_conn_lookup(demo_conn, &incoming, &reverse) ||
-            !reverse || demo_conn->count != 1 ||
+            !reverse ||
+            !netfw_conn_lookup_info(demo_conn, &outgoing, &original_info) ||
+            original_info.direction != NETFW_FLOW_ORIGINAL ||
+            original_info.state != NETFW_CONN_NEW ||
+            !netfw_conn_lookup_info(demo_conn, &incoming, &reply_info) ||
+            reply_info.direction != NETFW_FLOW_REPLY ||
+            reply_info.state != NETFW_CONN_NEW ||
+            demo_conn->count != 1 ||
             netfw_conn_add(demo_conn, &incoming) != -EEXIST) {
             err = -EINVAL;
         }
