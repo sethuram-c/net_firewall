@@ -351,6 +351,23 @@ static int __init netfw_hello_init(void)
             netfw_conn_add(demo_conn, &incoming) != -EEXIST) {
             err = -EINVAL;
         }
+        /* Phase 22: SYN -> SYN/ACK -> ACK -> FIN, all during init only. */
+        if (!err &&
+            (netfw_conn_tcp_step(demo_conn, &incoming,
+                                 NETFW_TCP_SYN | NETFW_TCP_ACK, &reply_info) ||
+             reply_info.state != NETFW_CONN_NEW ||
+             netfw_conn_tcp_step(demo_conn, &outgoing, NETFW_TCP_SYN,
+                                 &original_info) ||
+             netfw_conn_tcp_step(demo_conn, &incoming,
+                                 NETFW_TCP_SYN | NETFW_TCP_ACK, &reply_info) ||
+             reply_info.state != NETFW_CONN_REPLIED ||
+             netfw_conn_tcp_step(demo_conn, &outgoing, NETFW_TCP_ACK,
+                                 &original_info) ||
+             original_info.state != NETFW_CONN_ESTABLISHED ||
+             netfw_conn_tcp_step(demo_conn, &incoming, NETFW_TCP_FIN,
+                                 &reply_info) ||
+             reply_info.state != NETFW_CONN_CLOSING))
+            err = -EINVAL;
         kfree(demo_conn);
         if (err)
             goto err_free_label;
@@ -389,5 +406,5 @@ module_init(netfw_hello_init);
 module_exit(netfw_hello_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("NETFW learning project");
-MODULE_DESCRIPTION("Phase 12 rule descriptor; isolated UDP verdict lab retained");
+MODULE_DESCRIPTION("Phase 22 simplified TCP state demo; lab verdict retained");
 MODULE_VERSION("0.12");

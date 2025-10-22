@@ -412,3 +412,21 @@ ICMP needs different handling.
 - [ ] Commit with November 21, 2026, 21:34 IST metadata
 
 **Next:** Phase 22 - simplified TCP connection state transitions.
+
+
+## Phase 22 — Simplified TCP state transitions
+**Status:** Implemented; 168 Python tests targeted; Fedora compilation and privileged regression pending.
+
+**Changes:** Extend connection metadata with ESTABLISHED/CLOSING and `syn_seen`. Add locked `netfw_conn_tcp_step()` to recognize original SYN, reply SYN+ACK, original ACK and FIN/RST; return safe snapshots and reject non-TCP flow keys. Preserve original Phase 21 lookup API and real lab verdicts. Add 9 source tests and init-only positive/negative smoke checks.
+
+**Limitations:** Not complete RFC TCP state tracking. No sequence validation, retransmission model, timeout, or live Netfilter connection-state enforcement.
+
+**Fedora acceptance:**
+- [ ] `make clean && make check-build` (168 tests expected)
+- [ ] `sudo bash scripts/test_failure_paths.sh`
+- [ ] `sudo bash scripts/test_verdict_regression.sh`
+- [ ] Verify module unloaded and temporary veth/namespace removed
+- [ ] Read separate personal learning PDF (not committed)
+- [ ] Commit with November 22, 2026, 21:57 IST metadata
+
+**Next:** Phase 23 — UDP pseudo-state and timeouts.

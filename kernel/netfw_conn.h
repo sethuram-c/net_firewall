@@ -14,12 +14,12 @@
 #define NETFW_CONN_SLOTS 4
 #define NETFW_CONN_CAPACITY (NETFW_CONN_BUCKETS * NETFW_CONN_SLOTS)
 
-/* Phase 21 metadata describes direction and conceptual connection progress.
- * State is only initialized; no live packet-based transitions occur yet.
- */
+/* Phase 22: lightweight TCP handshake model, not RFC-complete tracking. */
 enum netfw_conn_state {
     NETFW_CONN_NEW = 0,
     NETFW_CONN_REPLIED = 1,
+    NETFW_CONN_ESTABLISHED = 2,
+    NETFW_CONN_CLOSING = 3,
 };
 
 enum netfw_flow_direction {
@@ -36,6 +36,7 @@ struct netfw_conn_entry {
     bool used;
     struct netfw_flow_key key;
     enum netfw_conn_state state;
+    bool syn_seen;
 };
 
 struct netfw_conn_table {
@@ -148,9 +149,72 @@ static inline int netfw_conn_add(struct netfw_conn_table *table,
     }
     table->bucket[bucket][vacant].key = *key;
     table->bucket[bucket][vacant].state = NETFW_CONN_NEW;
+    table->bucket[bucket][vacant].syn_seen = false;
     table->bucket[bucket][vacant].used = true;
     ++table->count;
 out:
+    spin_unlock_bh(&table->lock);
+    return result;
+}
+
+
+/* These are the low byte of TCP flags, not netfilter verdicts. */
+#define NETFW_TCP_FIN 0x01
+#define NETFW_TCP_SYN 0x02
+#define NETFW_TCP_RST 0x04
+#define NETFW_TCP_ACK 0x10
+
+/* Update one previously inserted TCP flow using a deliberately small model.
+ * Caller must have validated the TCP header and extracted its flags.
+ * The five-tuple + direction are checked while holding the bucket lock.
+ * Return -ENOENT for unknown flows and -EINVAL for invalid protocol/input.
+ * This is NOT TCP sequence-number validation or a security-grade conntrack.
+ */
+static inline int netfw_conn_tcp_step(struct netfw_conn_table *table,
+                                      const struct netfw_flow_key *key,
+                                      u8 flags, struct netfw_conn_info *info)
+{
+    unsigned int bucket, slot;
+    int result = -ENOENT;
+
+    if (!table || !key || key->protocol != IPPROTO_TCP ||
+        !netfw_flow_is_transport(key))
+        return -EINVAL;
+    bucket = netfw_conn_bucket(key);
+    spin_lock_bh(&table->lock);
+    for (slot = 0; slot < NETFW_CONN_SLOTS; ++slot) {
+        struct netfw_conn_entry *entry = &table->bucket[bucket][slot];
+        bool forward, backward;
+
+        if (!entry->used)
+            continue;
+        forward = netfw_flow_equal(&entry->key, key);
+        backward = !forward && netfw_flow_reverse_equal(&entry->key, key);
+        if (!forward && !backward)
+            continue;
+        if (entry->state != NETFW_CONN_CLOSING) {
+            if (flags & (NETFW_TCP_RST | NETFW_TCP_FIN)) {
+                /* Simplification: FIN and RST both enter terminal CLOSING. */
+                entry->state = NETFW_CONN_CLOSING;
+            } else if (entry->state == NETFW_CONN_NEW && forward &&
+                       (flags & NETFW_TCP_SYN) && !(flags & NETFW_TCP_ACK)) {
+                entry->syn_seen = true;
+            } else if (entry->state == NETFW_CONN_NEW && backward &&
+                       entry->syn_seen && (flags & NETFW_TCP_SYN) &&
+                       (flags & NETFW_TCP_ACK)) {
+                entry->state = NETFW_CONN_REPLIED;
+            } else if (entry->state == NETFW_CONN_REPLIED && forward &&
+                       (flags & NETFW_TCP_ACK) && !(flags & NETFW_TCP_SYN)) {
+                entry->state = NETFW_CONN_ESTABLISHED;
+            }
+        }
+        if (info) {
+            info->state = entry->state;
+            info->direction = backward ? NETFW_FLOW_REPLY : NETFW_FLOW_ORIGINAL;
+        }
+        result = 0;
+        break;
+    }
     spin_unlock_bh(&table->lock);
     return result;
 }

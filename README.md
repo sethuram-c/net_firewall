@@ -282,3 +282,12 @@ Fedora: `make clean && make check-build`, then
 
 ### Phase 21 — Flow direction and state metadata
 `kernel/netfw_conn.h` adds a copy-out `netfw_conn_lookup_info()` API carrying the stored state and whether a key matched in the original or reply direction. Entries start in `NETFW_CONN_NEW`; detecting reverse direction does **not** mark a flow established. No live tracking or transitions yet. The old lookup API is retained. Run `make check-build` and isolated regression tests as before.
+
+
+## Phase 22 — Simplified TCP state transitions
+
+`netfw_conn_tcp_step()` in `kernel/netfw_conn.h` models a tiny TCP handshake: NEW (initial SYN observed), REPLIED (reverse SYN+ACK), ESTABLISHED (original ACK), then CLOSING (FIN/RST). Missing or out-of-order handshake steps do not advance the state. A reverse lookup by itself never advances a connection. Updates are protected by `spin_lock_bh`; API returns a snapshot, not an internal pointer.
+
+This is intentionally **not** full TCP tracking: no sequence/ACK-number validation, retransmission handling, teardown handshake, timeouts, or live packet state changes. Init-only smoke tests exercise transitions. Real lab ACCEPT/DROP behavior is preserved.
+
+Fedora: `make clean && make check-build`; `sudo bash scripts/test_failure_paths.sh`; `sudo bash scripts/test_verdict_regression.sh`.
