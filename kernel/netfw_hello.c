@@ -368,6 +368,34 @@ static int __init netfw_hello_init(void)
                                  &reply_info) ||
              reply_info.state != NETFW_CONN_CLOSING))
             err = -EINVAL;
+        /* Phase 23: UDP reply pseudo-state and deterministic expiration. */
+        if (!err) {
+            const struct netfw_flow_key udp_out = {
+                .src_ip = htonl(0x0a000001), .dst_ip = htonl(0x0a000002),
+                .src_port = htons(40000), .dst_port = htons(5353),
+                .protocol = IPPROTO_UDP,
+            };
+            const struct netfw_flow_key udp_reply = {
+                .src_ip = htonl(0x0a000002), .dst_ip = htonl(0x0a000001),
+                .src_port = htons(5353), .dst_port = htons(40000),
+                .protocol = IPPROTO_UDP,
+            };
+            struct netfw_conn_info udp_info;
+            unsigned long tick = jiffies;
+
+            if (netfw_conn_add(demo_conn, &udp_out) ||
+                netfw_conn_udp_step(demo_conn, &udp_out, tick, &udp_info) ||
+                udp_info.state != NETFW_CONN_NEW ||
+                netfw_conn_udp_step(demo_conn, &udp_reply, tick + HZ,
+                                    &udp_info) ||
+                udp_info.state != NETFW_CONN_REPLIED ||
+                udp_info.direction != NETFW_FLOW_REPLY ||
+                netfw_conn_expire(demo_conn,
+                                  tick + HZ + NETFW_UDP_REPLIED_TIMEOUT) != 1 ||
+                netfw_conn_lookup(demo_conn, &udp_out, NULL) ||
+                demo_conn->count != 1)
+                err = -EINVAL;
+        }
         kfree(demo_conn);
         if (err)
             goto err_free_label;

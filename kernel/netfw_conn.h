@@ -3,6 +3,7 @@
 #define NETFW_CONN_H
 
 #include <linux/errno.h>
+#include <linux/jiffies.h>
 #include <linux/spinlock.h>
 #include <linux/string.h>
 #include "netfw_flow.h"
@@ -37,6 +38,7 @@ struct netfw_conn_entry {
     struct netfw_flow_key key;
     enum netfw_conn_state state;
     bool syn_seen;
+    unsigned long last_seen;
 };
 
 struct netfw_conn_table {
@@ -150,6 +152,7 @@ static inline int netfw_conn_add(struct netfw_conn_table *table,
     table->bucket[bucket][vacant].key = *key;
     table->bucket[bucket][vacant].state = NETFW_CONN_NEW;
     table->bucket[bucket][vacant].syn_seen = false;
+    table->bucket[bucket][vacant].last_seen = jiffies;
     table->bucket[bucket][vacant].used = true;
     ++table->count;
 out:
@@ -217,6 +220,90 @@ static inline int netfw_conn_tcp_step(struct netfw_conn_table *table,
     }
     spin_unlock_bh(&table->lock);
     return result;
+}
+
+
+/* Phase 23: demo-only UDP pseudo-state and inactivity timeout.
+ * Callers supply a monotonic jiffies timestamp; no work queues or timers run.
+ * Reply traffic promotes NEW -> REPLIED; this is NOT authenticated UDP state.
+ * Return -ENOENT on missing flow, -EINVAL on invalid inputs.
+ */
+#define NETFW_UDP_NEW_TIMEOUT (30 * HZ)
+#define NETFW_UDP_REPLIED_TIMEOUT (120 * HZ)
+#define NETFW_TCP_IDLE_TIMEOUT (300 * HZ)
+
+static inline unsigned long netfw_conn_timeout(const struct netfw_conn_entry *entry)
+{
+    if (entry->key.protocol == IPPROTO_UDP)
+        return entry->state == NETFW_CONN_REPLIED ?
+               NETFW_UDP_REPLIED_TIMEOUT : NETFW_UDP_NEW_TIMEOUT;
+    return NETFW_TCP_IDLE_TIMEOUT;
+}
+
+static inline int netfw_conn_udp_step(struct netfw_conn_table *table,
+                                      const struct netfw_flow_key *key,
+                                      unsigned long now,
+                                      struct netfw_conn_info *info)
+{
+    unsigned int bucket, slot;
+    int result = -ENOENT;
+
+    if (!table || !key || key->protocol != IPPROTO_UDP ||
+        !netfw_flow_is_transport(key))
+        return -EINVAL;
+    bucket = netfw_conn_bucket(key);
+    spin_lock_bh(&table->lock);
+    for (slot = 0; slot < NETFW_CONN_SLOTS; ++slot) {
+        struct netfw_conn_entry *entry = &table->bucket[bucket][slot];
+        bool forward, backward;
+
+        if (!entry->used)
+            continue;
+        forward = netfw_flow_equal(&entry->key, key);
+        backward = !forward && netfw_flow_reverse_equal(&entry->key, key);
+        if (!forward && !backward)
+            continue;
+        if (backward)
+            entry->state = NETFW_CONN_REPLIED;
+        entry->last_seen = now;
+        if (info) {
+            info->state = entry->state;
+            info->direction = backward ? NETFW_FLOW_REPLY : NETFW_FLOW_ORIGINAL;
+        }
+        result = 0;
+        break;
+    }
+    spin_unlock_bh(&table->lock);
+    return result;
+}
+
+/* Explicit bounded expiration scan. Never return pointers to deleted entries.
+ * Does not mutate live Netfilter packet behavior or schedule background work.
+ */
+static inline unsigned int netfw_conn_expire(struct netfw_conn_table *table,
+                                             unsigned long now)
+{
+    unsigned int b, slot, removed = 0;
+
+    if (!table)
+        return 0;
+    spin_lock_bh(&table->lock);
+    for (b = 0; b < NETFW_CONN_BUCKETS; ++b) {
+        for (slot = 0; slot < NETFW_CONN_SLOTS; ++slot) {
+            struct netfw_conn_entry *entry = &table->bucket[b][slot];
+
+            if (!entry->used)
+                continue;
+            if (!time_after_eq(now, entry->last_seen +
+                                   netfw_conn_timeout(entry)))
+                continue;
+            memset(entry, 0, sizeof(*entry));
+            --table->count;
+            ++removed;
+        }
+    }
+    spin_unlock_bh(&table->lock);
+    return removed;
 }
 
 #endif /* NETFW_CONN_H */

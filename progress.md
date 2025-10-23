@@ -430,3 +430,19 @@ ICMP needs different handling.
 - [ ] Commit with November 22, 2026, 21:57 IST metadata
 
 **Next:** Phase 23 — UDP pseudo-state and timeouts.
+
+
+## Phase 23 — UDP pseudo-state and inactivity timeouts
+**Status:** Implemented; 177 source tests targeted. Fedora build/runtime pending.
+
+**Changes:** A UDP flow stays NEW on original-direction traffic and becomes REPLIED after a reverse packet. Track last activity in jiffies, use 30s (unreplied UDP), 120s (replied UDP), and 300s (simplified TCP) inactivity windows. Add explicit bounded expiry scanning without timers or allocations. Run deterministic init-only smoke tests. Fix nested Bash test execution regardless of ZIP executable permissions. The live Netfilter policy remains unchanged.
+
+**Fedora acceptance:**
+- [ ] `make clean && make check-build` (177 tests expected)
+- [ ] `sudo bash scripts/test_failure_paths.sh`
+- [ ] `sudo bash scripts/test_verdict_regression.sh`
+- [ ] Verify module unloaded and temporary interfaces/namespaces removed
+- [ ] Read personal Phase 23 PDF (not committed)
+- [ ] Commit using November 23, 2026, 21:39 IST metadata
+
+**Next:** Phase 24 — Connection synchronization, expiration and cleanup integration.

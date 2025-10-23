@@ -12,8 +12,8 @@ check_clean() {
   fi
 }
 check_clean
-LAB_DROP_MODE=0 ./scripts/test_lab_drop.sh
+LAB_DROP_MODE=0 bash ./scripts/test_lab_drop.sh
 check_clean
-LAB_DROP_MODE=1 ./scripts/test_lab_drop.sh
+LAB_DROP_MODE=1 bash ./scripts/test_lab_drop.sh
 check_clean
 printf 'PASS: Phase 11 default ACCEPT, opt-in DROP, and teardown regression\n'

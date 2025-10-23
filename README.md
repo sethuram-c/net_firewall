@@ -291,3 +291,9 @@ Fedora: `make clean && make check-build`, then
 This is intentionally **not** full TCP tracking: no sequence/ACK-number validation, retransmission handling, teardown handshake, timeouts, or live packet state changes. Init-only smoke tests exercise transitions. Real lab ACCEPT/DROP behavior is preserved.
 
 Fedora: `make clean && make check-build`; `sudo bash scripts/test_failure_paths.sh`; `sudo bash scripts/test_verdict_regression.sh`.
+
+
+### Phase 23: UDP pseudo-state and inactivity
+`kernel/netfw_conn.h` now provides `netfw_conn_udp_step()` and `netfw_conn_expire()` for the bounded educational flow table. Original traffic remains NEW; a reverse-direction datagram changes state to REPLIED. Inactivity is measured in kernel jiffies: unreplied UDP 30s, replied UDP 120s, TCP 300s. The expiration scan is explicit (no timer/workqueue), lock-protected, and removes expired entries. It runs only in deterministic initialization-time checks; it does not yet track live packets or affect filtering.
+
+On Fedora: `make clean && make check-build`, then `sudo bash scripts/test_failure_paths.sh` and `sudo bash scripts/test_verdict_regression.sh`. Nested tests are invoked via `bash` to tolerate ZIP extraction permissions.
