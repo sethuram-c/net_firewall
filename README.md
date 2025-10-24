@@ -297,3 +297,17 @@ Fedora: `make clean && make check-build`; `sudo bash scripts/test_failure_paths.
 `kernel/netfw_conn.h` now provides `netfw_conn_udp_step()` and `netfw_conn_expire()` for the bounded educational flow table. Original traffic remains NEW; a reverse-direction datagram changes state to REPLIED. Inactivity is measured in kernel jiffies: unreplied UDP 30s, replied UDP 120s, TCP 300s. The expiration scan is explicit (no timer/workqueue), lock-protected, and removes expired entries. It runs only in deterministic initialization-time checks; it does not yet track live packets or affect filtering.
 
 On Fedora: `make clean && make check-build`, then `sudo bash scripts/test_failure_paths.sh` and `sudo bash scripts/test_verdict_regression.sh`. Nested tests are invoked via `bash` to tolerate ZIP extraction permissions.
+
+
+### Phase 24 — synchronized connection cleanup
+The educational connection table now exposes `netfw_conn_count()` (snapshot),
+`netfw_conn_remove()` (either direction), and `netfw_conn_clear()` (idempotent
+reset). Each uses `spin_lock_bh()` to serialize access to the fixed slots.
+The explicit expiration scan from Phase 23 is retained; no worker or live
+connection tracking is activated. A table owner must stop all concurrent
+readers/writers before freeing its memory; clearing does not make freeing
+concurrently safe. Initialization exercises removal and clearing.
+
+Fedora: `make clean && make check-build`, then `sudo bash scripts/test_failure_paths.sh`
+and `sudo bash scripts/test_verdict_regression.sh`. Verify module, veth and
+namespace removal. The separate learning PDF must not be committed.

@@ -306,4 +306,57 @@ static inline unsigned int netfw_conn_expire(struct netfw_conn_table *table,
     return removed;
 }
 
+/* Phase 24: explicit synchronized removal and teardown. All operations
+ * keep the shared table protected, and never return entry pointers.
+ * Call clear only after stopping producers when destroying a live table.
+ */
+static inline unsigned int netfw_conn_count(struct netfw_conn_table *table)
+{
+    unsigned int count;
+
+    if (!table)
+        return 0;
+    spin_lock_bh(&table->lock);
+    count = table->count;
+    spin_unlock_bh(&table->lock);
+    return count;
+}
+
+static inline int netfw_conn_remove(struct netfw_conn_table *table,
+                                    const struct netfw_flow_key *key)
+{
+    unsigned int bucket, slot;
+    int result = -ENOENT;
+
+    if (!table || !netfw_flow_is_transport(key))
+        return -EINVAL;
+    bucket = netfw_conn_bucket(key);
+    spin_lock_bh(&table->lock);
+    for (slot = 0; slot < NETFW_CONN_SLOTS; ++slot) {
+        struct netfw_conn_entry *entry = &table->bucket[bucket][slot];
+
+        if (!entry->used)
+            continue;
+        if (!netfw_flow_equal(&entry->key, key) &&
+            !netfw_flow_reverse_equal(&entry->key, key))
+            continue;
+        memset(entry, 0, sizeof(*entry));
+        --table->count;
+        result = 0;
+        break;
+    }
+    spin_unlock_bh(&table->lock);
+    return result;
+}
+
+static inline void netfw_conn_clear(struct netfw_conn_table *table)
+{
+    if (!table)
+        return;
+    spin_lock_bh(&table->lock);
+    memset(table->bucket, 0, sizeof(table->bucket));
+    table->count = 0;
+    spin_unlock_bh(&table->lock);
+}
+
 #endif /* NETFW_CONN_H */

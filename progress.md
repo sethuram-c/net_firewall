@@ -446,3 +446,22 @@ ICMP needs different handling.
 - [ ] Commit using November 23, 2026, 21:39 IST metadata
 
 **Next:** Phase 24 — Connection synchronization, expiration and cleanup integration.
+
+
+## Phase 24 — synchronized connection expiration and cleanup
+**Status:** Implemented; 186 Python tests expected. Fedora compilation/runtime pending.
+
+**Changes:** Add lock-protected connection count snapshots, explicit removal
+by original/reverse key, and idempotent table clearing. Preserve Phase 23
+expiration scanning and original live ACCEPT/DROP lab. Add init-only positive
+and negative removal checks, and 9 source tests. No live tracking yet.
+
+**Fedora acceptance:**
+- [ ] `make clean && make check-build` (186 tests expected)
+- [ ] `sudo bash scripts/test_failure_paths.sh`
+- [ ] `sudo bash scripts/test_verdict_regression.sh`
+- [ ] Verify module unloaded, `nfwt10h` absent, no namespace remaining
+- [ ] Read Phase 24 personal PDF (exclude from repository)
+- [ ] Commit using November 24, 2026 at 21:48 IST metadata
+
+**Next:** Phase 25 — Netlink socket fundamentals and message protocol.

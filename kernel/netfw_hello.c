@@ -396,6 +396,21 @@ static int __init netfw_hello_init(void)
                 demo_conn->count != 1)
                 err = -EINVAL;
         }
+        /* Phase 24: exercise reverse-key removal, double removal,
+         * bounded count snapshots and idempotent teardown in init only.
+         */
+        if (!err && (netfw_conn_count(demo_conn) != 1 ||
+                     netfw_conn_remove(demo_conn, &incoming) ||
+                     netfw_conn_remove(demo_conn, &outgoing) != -ENOENT ||
+                     netfw_conn_count(demo_conn) != 0 ||
+                     netfw_conn_add(demo_conn, &outgoing) ||
+                     netfw_conn_count(demo_conn) != 1))
+            err = -EINVAL;
+        netfw_conn_clear(demo_conn);
+        if (netfw_conn_count(demo_conn) != 0 ||
+            netfw_conn_lookup(demo_conn, &outgoing, NULL))
+            err = -EINVAL;
+        netfw_conn_clear(demo_conn);
         kfree(demo_conn);
         if (err)
             goto err_free_label;
