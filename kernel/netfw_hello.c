@@ -24,6 +24,7 @@
 #include "netfw_table.h"
 #include "netfw_flow.h"
 #include "netfw_conn.h"
+#include "netfw_netlink.h"
 
 #define NETFW_MESSAGE_SIZE 128
 #define NETFW_LABEL_SIZE 32

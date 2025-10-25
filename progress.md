@@ -465,3 +465,24 @@ and negative removal checks, and 9 source tests. No live tracking yet.
 - [ ] Commit using November 24, 2026 at 21:48 IST metadata
 
 **Next:** Phase 25 — Netlink socket fundamentals and message protocol.
+
+
+## Phase 25 — Netlink fundamentals and versioned message protocol
+**Status:** Implemented; 195 Python tests targeted; Fedora build/runtime pending.
+
+**Changes:** Define a small network-order 8-byte kernel/userspace payload
+contract with version, command, reserved, request ID and strict validation.
+Add Python encode/decode codec and nine tests. No socket opened and no packet
+policy changed. Prior Phase 24 Fedora run: 186 tests, build, failure paths,
+verdict regression and teardown passed; commit `eeab856`.
+
+**Fedora acceptance:**
+- [ ] `make clean && make check-build` (195 tests expected)
+- [ ] `python3 -m unittest discover -s tests -p 'test_netlink_protocol.py' -v`
+- [ ] `sudo bash scripts/test_failure_paths.sh`
+- [ ] `sudo bash scripts/test_verdict_regression.sh`
+- [ ] Verify module unloaded, veth absent and namespace absent
+- [ ] Keep Phase 25 Learning PDF outside Git
+- [ ] Commit November 25, 2026, 21:36 IST
+
+**Next:** Phase 26 — kernel-side Netlink socket registration and safe handler.

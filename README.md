@@ -311,3 +311,17 @@ concurrently safe. Initialization exercises removal and clearing.
 Fedora: `make clean && make check-build`, then `sudo bash scripts/test_failure_paths.sh`
 and `sudo bash scripts/test_verdict_regression.sh`. Verify module, veth and
 namespace removal. The separate learning PDF must not be committed.
+
+
+## Phase 25 — Netlink message contract (codec only)
+
+`kernel/netfw_netlink.h` and `userspace/netfw_protocol.py` define a shared,
+versioned 8-byte application payload: version (u8), command (u8), reserved
+(u16, zero), request ID (u32, network order). Commands 1 and 2 denote PING
+and STATUS. Unknown versions, commands, reserved bits or lengths are rejected.
+
+**No AF_NETLINK socket is registered yet.** PING and STATUS are protocol
+identifiers only. There is no kernel listener, no live replies, and no
+userspace CLI yet. In particular, this phase does not modify Netfilter verdicts.
+
+Run `python3 -m unittest tests/test_netlink_protocol.py -v` or `make check`.
