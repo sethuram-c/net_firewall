@@ -325,3 +325,36 @@ identifiers only. There is no kernel listener, no live replies, and no
 userspace CLI yet. In particular, this phase does not modify Netfilter verdicts.
 
 Run `python3 -m unittest tests/test_netlink_protocol.py -v` or `make check`.
+
+
+## Phase 26 — Kernel Netlink PING / STATUS endpoint
+
+The module now registers one `NETLINK_USERSOCK` endpoint in the initial network
+namespace after successfully registering its existing IPv4 Netfilter hook.
+Both PING and STATUS acknowledge the validated 8-byte Phase 25 payload without
+modifying rules or providing statistics. The kernel strictly checks the Netlink
+header, fixed payload length, message type, flags, application version and
+reserved bytes. It copies potentially unaligned payload bytes before checking
+fields, allocates replies with `GFP_ATOMIC`, and derives sender port ID from
+`NETLINK_CB(skb).portid`, not the untrusted header. The socket is released
+before the hook and module allocations on exit. Registration failure unwinds
+the hook and allocations. No extra `NF_DROP` path is added.
+
+**Experimental caveats:** protocol number `NETLINK_USERSOCK` (2) is shared,
+so another kernel endpoint can prevent module insertion. Netlink replies are
+not authenticated to applications and this is not a privileged firewall control
+interface. STATUS currently echoes the request: no live state statistics. Do
+not build mutation commands on this endpoint without proper access control.
+
+With the module loaded, run:
+
+```bash
+sudo insmod kernel/netfw_hello.ko
+python3 userspace/netfw_client.py ping
+python3 userspace/netfw_client.py status
+sudo rmmod netfw_hello
+```
+
+The Python transport validates response length, type, sequence, command and ID.
+Run `make check-build`, then previously existing failure-path and verdict
+regression scripts. Test socket exchanges only on a disposable Fedora VM.

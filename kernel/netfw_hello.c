@@ -18,6 +18,12 @@
 #include <linux/netdevice.h>
 #include <net/net_namespace.h>
 #include <net/ip.h>
+/* Phase 26: one initial-network-namespace Netlink endpoint. */
+#include <linux/netlink.h>
+#include <net/sock.h>
+#include <linux/socket.h>
+#include <linux/byteorder/generic.h>
+
 #include "netfw_rule.h"
 #include "netfw_match.h"
 #include "netfw_policy.h"
@@ -31,6 +37,55 @@
 #define NETFW_LAB_IFACE "nfwt10h"
 #define NETFW_LAB_IPV4 0xC6120002U /* 198.18.0.2 in host integer order */
 #define NETFW_LAB_UDP_PORT 54321
+
+/* NETLINK_USERSOCK is a shared protocol number: registration can fail if
+ * another kernel endpoint already owns it. This is a lab-only endpoint.
+ */
+#define NETFW_NL_PROTOCOL NETLINK_USERSOCK
+static struct sock *netfw_nl_sock;
+
+static void netfw_nl_receive(struct sk_buff *skb)
+{
+    struct nlmsghdr *nlh;
+    struct netfw_nl_request request;
+    struct sk_buff *response_skb;
+    struct nlmsghdr *response_hdr;
+    u32 portid;
+    int ret;
+
+    if (!skb || skb->len < nlmsg_total_size(NETFW_NL_PAYLOAD_BYTES))
+        return;
+    nlh = nlmsg_hdr(skb);
+    if (!nlmsg_ok(nlh, skb->len) ||
+        nlh->nlmsg_len != nlmsg_msg_size(NETFW_NL_PAYLOAD_BYTES) ||
+        nlh->nlmsg_type != NLMSG_MIN_TYPE ||
+        (nlh->nlmsg_flags & ~(NLM_F_REQUEST)))
+        return;
+    /* Copy untrusted payload to an aligned local before validation. */
+    memcpy(&request, nlmsg_data(nlh), sizeof(request));
+    if (!netfw_nl_valid_request(&request))
+        return;
+    /* Netlink supplies the actual sender port ID; never trust nlmsg_pid. */
+    portid = NETLINK_CB(skb).portid;
+    if (!portid)
+        return;
+    response_skb = nlmsg_new(sizeof(request), GFP_ATOMIC);
+    if (!response_skb)
+        return;
+    response_hdr = nlmsg_put(response_skb, 0, nlh->nlmsg_seq,
+                             NLMSG_DONE, sizeof(request), 0);
+    if (!response_hdr) {
+        kfree_skb(response_skb);
+        return;
+    }
+    /* PING and STATUS are non-mutating acknowledgments. The command and
+     * request ID are echoed; no connection statistics are exposed yet.
+     */
+    memcpy(nlmsg_data(response_hdr), &request, sizeof(request));
+    ret = netlink_unicast(netfw_nl_sock, response_skb, portid, MSG_DONTWAIT);
+    if (ret < 0)
+        pr_debug_ratelimited("netfw_hello: Netlink reply failed (%d)\n", ret);
+}
 
 static char *netfw_message;
 static char *netfw_label;
@@ -423,6 +478,18 @@ static int __init netfw_hello_init(void)
         pr_err("netfw_hello: hook registration failed (%d)\n", err);
         goto err_free_label;
     }
+    /* Register after Netfilter so errors can unwind the hook first. */
+    {
+        struct netlink_kernel_cfg cfg = { .input = netfw_nl_receive };
+
+        netfw_nl_sock = netlink_kernel_create(&init_net, NETFW_NL_PROTOCOL,
+                                              &cfg);
+        if (!netfw_nl_sock) {
+            err = -ENOMEM;
+            nf_unregister_net_hook(&init_net, &netfw_hook);
+            goto err_free_label;
+        }
+    }
     pr_info("netfw_hello: %s; label=%s; IPv4 hook active (lab_drop=%u)\n",
             netfw_message, netfw_label, lab_drop);
     return 0;
@@ -438,6 +505,8 @@ err_free_message:
 
 static void __exit netfw_hello_exit(void)
 {
+    netlink_kernel_release(netfw_nl_sock);
+    netfw_nl_sock = NULL;
     nf_unregister_net_hook(&init_net, &netfw_hook);
     kfree(netfw_label);
     netfw_label = NULL;
@@ -450,5 +519,5 @@ module_init(netfw_hello_init);
 module_exit(netfw_hello_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("NETFW learning project");
-MODULE_DESCRIPTION("Phase 22 simplified TCP state demo; lab verdict retained");
+MODULE_DESCRIPTION("Phase 26 Netlink PING/STATUS listener; lab verdict retained");
 MODULE_VERSION("0.12");

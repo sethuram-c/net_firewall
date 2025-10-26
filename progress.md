@@ -486,3 +486,25 @@ verdict regression and teardown passed; commit `eeab856`.
 - [ ] Commit November 25, 2026, 21:36 IST
 
 **Next:** Phase 26 — kernel-side Netlink socket registration and safe handler.
+
+
+## Phase 26 — Kernel Netlink socket and safe read-only handler
+**Status:** Implemented, 204 Python tests targeted; Fedora build and runtime pending.
+
+**Changes:** Register an initial-netns `NETLINK_USERSOCK` listener, safely
+validate versioned PING/STATUS requests, echo nonmutating acknowledgments,
+release socket on unload and unwind the hook if socket setup fails. Add a
+minimal userspace transport client and nine tests. This does not expose live
+rule editing or change any existing Netfilter verdict.
+
+**Fedora acceptance:**
+- [ ] `make clean && make check-build` (204 tests expected)
+- [ ] `make verify-build`
+- [ ] `sudo bash scripts/test_failure_paths.sh`
+- [ ] `sudo bash scripts/test_verdict_regression.sh`
+- [ ] Manual `sudo insmod kernel/netfw_hello.ko`, Python PING/STATUS, `sudo rmmod netfw_hello`
+- [ ] Check module unloaded, `nfwt10h` absent, namespace list empty
+- [ ] Read separate Phase 26 learning PDF (not committed)
+- [ ] Commit with November 26, 2026, 21:44 IST metadata
+
+**Next:** Phase 27 — Netlink request/response error reporting and CLI integration.
