@@ -358,3 +358,28 @@ sudo rmmod netfw_hello
 The Python transport validates response length, type, sequence, command and ID.
 Run `make check-build`, then previously existing failure-path and verdict
 regression scripts. Test socket exchanges only on a disposable Fedora VM.
+
+
+## Phase 27 — Netlink error statuses and read-only CLI
+
+Netlink replies now contain a 12-byte application payload: an
+8-byte version/command/reserved/request-ID header (reserved zero in replies) and a signed big-endian 32-bit
+status. Zero means success; a negative Linux errno reports a rejected request.
+For an otherwise valid 8-byte request envelope: unsupported versions yield
+`-EPROTONOSUPPORT`, nonzero reserved bytes `-EINVAL`, and unknown commands
+`-EOPNOTSUPP`. Malformed Netlink envelopes are silently rejected because their
+framing or sender information cannot be trusted. No rules are changed.
+
+After `sudo insmod kernel/netfw_hello.ko`:
+
+```bash
+python3 userspace/netfw_client.py ping --request-id 42
+python3 userspace/netfw_client.py status
+sudo rmmod netfw_hello
+```
+
+The Python CLI checks response sequence, identity and status, reports Linux
+errors, and uses nonzero exit codes on failure. STATUS is reachability-only,
+not true counters. `NETLINK_USERSOCK` is shared; this is not authenticated
+firewall administration. Phase 26 8-byte response parsing remains for existing
+unit-test fixture compatibility, although the Phase 27 kernel emits 12 bytes.

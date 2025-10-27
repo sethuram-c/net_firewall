@@ -36,3 +36,25 @@ def decode_request(data: bytes) -> Request:
     if version != VERSION or command not in COMMANDS or reserved != 0:
         raise ValueError("unsupported Netlink request")
     return Request(version, command, request_id)
+
+
+RESPONSE_FORMAT = "!BBHIi"  # request fields + signed 32-bit errno status
+RESPONSE_SIZE = struct.calcsize(RESPONSE_FORMAT)
+
+
+@dataclass(frozen=True)
+class Response:
+    version: int
+    command: int
+    request_id: int
+    status: int
+
+
+def decode_response(data: bytes) -> Response:
+    if not isinstance(data, bytes) or len(data) != RESPONSE_SIZE:
+        raise ValueError("invalid Netlink response payload length")
+    version, command, reserved, request_id, status = struct.unpack(
+        RESPONSE_FORMAT, data)
+    if reserved != 0:
+        raise ValueError("invalid Netlink response reserved field")
+    return Response(version, command, request_id, status)

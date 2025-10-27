@@ -508,3 +508,23 @@ rule editing or change any existing Netfilter verdict.
 - [ ] Commit with November 26, 2026, 21:44 IST metadata
 
 **Next:** Phase 27 — Netlink request/response error reporting and CLI integration.
+
+
+## Phase 27 — Netlink error replies and CLI
+**Status:** Implemented; 213 source tests targeted; Fedora kernel build and
+privileged live Netlink/regression tests pending.
+
+**Changes:** Add 12-byte reply with signed errno, specific protocol validation
+errors and CLI `ping` / `status` / `--request-id` with failure exit codes.
+Malformed outer Netlink envelopes remain ignored. Read-only operations only.
+
+**Fedora acceptance:**
+- [ ] `make clean && make check-build` (213 Python tests expected)
+- [ ] `make verify-build`
+- [ ] `sudo bash scripts/test_failure_paths.sh`
+- [ ] `sudo bash scripts/test_verdict_regression.sh`
+- [ ] `sudo insmod kernel/netfw_hello.ko` and Python ping/status
+- [ ] `sudo rmmod netfw_hello`; verify no module/veth/netns leftover
+- [ ] Commit November 27, 2026, 21:42 IST (planned Git metadata)
+
+**Next:** Phase 28 — Python CLI subcommands and read-only diagnostics.

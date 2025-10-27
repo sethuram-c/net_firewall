@@ -10,6 +10,7 @@
 #define NETFW_NL_CMD_PING 1
 #define NETFW_NL_CMD_STATUS 2
 #define NETFW_NL_PAYLOAD_BYTES 8
+#define NETFW_NL_RESPONSE_BYTES 12
 
 /* Fields whose names end in _be use network (big-endian) byte order. */
 struct netfw_nl_request {
@@ -27,5 +28,12 @@ static inline bool netfw_nl_valid_request(const struct netfw_nl_request *req)
            req->command == NETFW_NL_CMD_STATUS;
 }
 
+/* Replies preserve the request header and append a signed errno-style status. */
+struct netfw_nl_response {
+    struct netfw_nl_request request;
+    __be32 status_be;
+} __packed;
+
 static_assert(sizeof(struct netfw_nl_request) == NETFW_NL_PAYLOAD_BYTES);
+static_assert(sizeof(struct netfw_nl_response) == NETFW_NL_RESPONSE_BYTES);
 #endif

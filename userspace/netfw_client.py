@@ -6,8 +6,11 @@ NETLINK_USERSOCK is shared, so kernel socket creation can fail if occupied.
 import socket
 import struct
 import sys
+import argparse
+import errno
 
-from netfw_protocol import CMD_PING, CMD_STATUS, decode_request, encode_request
+from netfw_protocol import (CMD_PING, CMD_STATUS, RESPONSE_SIZE,
+                            decode_request, decode_response, encode_request)
 
 NETLINK_USERSOCK = 2
 NLMSG_DONE = 3
@@ -26,14 +29,23 @@ def make_message(command: int, request_id: int, sequence: int) -> bytes:
 
 def parse_reply(data: bytes, expected_command: int, expected_id: int,
                 expected_sequence: int):
-    if len(data) != HEADER.size + 8:
+    # Retain Phase 26 fixture compatibility for its old 8-byte acknowledgments.
+    if len(data) not in (HEADER.size + 8, HEADER.size + RESPONSE_SIZE):
         raise ValueError("invalid Netlink response size")
     length, kind, flags, seq, pid = HEADER.unpack_from(data)
-    if length != len(data) or kind != NLMSG_DONE or seq != expected_sequence:
+    if (length != len(data) or kind != NLMSG_DONE or
+            seq != expected_sequence or pid != 0):
         raise ValueError("invalid Netlink response header")
-    response = decode_request(data[HEADER.size:])
+    payload = data[HEADER.size:]
+    response = (decode_request(payload) if len(payload) == 8 else
+                decode_response(payload))
     if response.command != expected_command or response.request_id != expected_id:
         raise ValueError("Netlink response does not match request")
+    if hasattr(response, "status") and response.status:
+        code = -response.status
+        if code <= 0 or code > 4095:
+            raise ValueError("invalid kernel Netlink status")
+        raise OSError(code, errno.errorcode.get(code, "Netlink request failed"))
     return response
 
 
@@ -50,12 +62,21 @@ def request(command: int, request_id: int = 1, sequence: int = 1):
 
 
 def main(argv=None):
-    argv = sys.argv[1:] if argv is None else argv
-    if len(argv) != 1 or argv[0] not in ("ping", "status"):
-        raise SystemExit("usage: python3 userspace/netfw_client.py ping|status")
-    cmd = CMD_PING if argv[0] == "ping" else CMD_STATUS
-    print(request(cmd))
+    parser = argparse.ArgumentParser(description="Read-only NETFW Netlink client")
+    parser.add_argument("command", choices=("ping", "status"))
+    parser.add_argument("--request-id", type=int, default=1)
+    args = parser.parse_args(argv)
+    cmd = CMD_PING if args.command == "ping" else CMD_STATUS
+    try:
+        response = request(cmd, request_id=args.request_id)
+    except (OSError, ValueError) as exc:
+        print(f"netfw: {exc}", file=sys.stderr)
+        return 1
+    print(f"NETFW {args.command.upper()} OK (request_id={response.request_id})")
+    if args.command == "status":
+        print("STATUS: endpoint reachable; live firewall counters unavailable")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

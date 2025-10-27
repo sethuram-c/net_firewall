@@ -44,13 +44,18 @@
 #define NETFW_NL_PROTOCOL NETLINK_USERSOCK
 static struct sock *netfw_nl_sock;
 
+/* Only request-shaped envelopes receive replies; malformed outer framing is
+ * silently ignored because sequence and sender identity cannot be trusted.
+ */
 static void netfw_nl_receive(struct sk_buff *skb)
 {
     struct nlmsghdr *nlh;
     struct netfw_nl_request request;
+    struct netfw_nl_response response;
     struct sk_buff *response_skb;
     struct nlmsghdr *response_hdr;
     u32 portid;
+    int status = 0;
     int ret;
 
     if (!skb || skb->len < nlmsg_total_size(NETFW_NL_PAYLOAD_BYTES))
@@ -61,27 +66,34 @@ static void netfw_nl_receive(struct sk_buff *skb)
         nlh->nlmsg_type != NLMSG_MIN_TYPE ||
         (nlh->nlmsg_flags & ~(NLM_F_REQUEST)))
         return;
-    /* Copy untrusted payload to an aligned local before validation. */
     memcpy(&request, nlmsg_data(nlh), sizeof(request));
-    if (!netfw_nl_valid_request(&request))
-        return;
-    /* Netlink supplies the actual sender port ID; never trust nlmsg_pid. */
     portid = NETLINK_CB(skb).portid;
     if (!portid)
         return;
-    response_skb = nlmsg_new(sizeof(request), GFP_ATOMIC);
+
+    if (!netfw_nl_valid_request(&request)) {
+        if (request.version != NETFW_NL_VERSION)
+            status = -EPROTONOSUPPORT;
+        else if (request.reserved_be)
+            status = -EINVAL;
+        else
+            status = -EOPNOTSUPP;
+    }
+
+    /* No mutations; invalid application payloads receive a bounded error. */
+    response.request = request;
+    response.request.reserved_be = 0; /* canonical reply even for bad request */
+    response.status_be = cpu_to_be32((u32)status);
+    response_skb = nlmsg_new(sizeof(response), GFP_ATOMIC);
     if (!response_skb)
         return;
     response_hdr = nlmsg_put(response_skb, 0, nlh->nlmsg_seq,
-                             NLMSG_DONE, sizeof(request), 0);
+                             NLMSG_DONE, sizeof(response), 0);
     if (!response_hdr) {
         kfree_skb(response_skb);
         return;
     }
-    /* PING and STATUS are non-mutating acknowledgments. The command and
-     * request ID are echoed; no connection statistics are exposed yet.
-     */
-    memcpy(nlmsg_data(response_hdr), &request, sizeof(request));
+    memcpy(nlmsg_data(response_hdr), &response, sizeof(response));
     ret = netlink_unicast(netfw_nl_sock, response_skb, portid, MSG_DONTWAIT);
     if (ret < 0)
         pr_debug_ratelimited("netfw_hello: Netlink reply failed (%d)\n", ret);
@@ -519,5 +531,5 @@ module_init(netfw_hello_init);
 module_exit(netfw_hello_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("NETFW learning project");
-MODULE_DESCRIPTION("Phase 26 Netlink PING/STATUS listener; lab verdict retained");
+MODULE_DESCRIPTION("Phase 27 Netlink error replies and CLI; lab verdict retained");
 MODULE_VERSION("0.12");
