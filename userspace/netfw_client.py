@@ -8,6 +8,8 @@ import struct
 import sys
 import argparse
 import errno
+import json
+from pathlib import Path
 
 from netfw_protocol import (CMD_PING, CMD_STATUS, RESPONSE_SIZE,
                             decode_request, decode_response, encode_request)
@@ -61,20 +63,63 @@ def request(command: int, request_id: int = 1, sequence: int = 1):
         return parse_reply(data, command, request_id, sequence)
 
 
+def read_local_diagnostics(proc_modules="/proc/modules", sys_module="/sys/module/netfw_hello"):
+    """Read only; no subprocess, root privileges, or kernel writes required."""
+    try:
+        modules = Path(proc_modules).read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise OSError(f"cannot read {proc_modules}: {exc}") from exc
+    loaded = any(line.split() and line.split()[0] == "netfw_hello"
+                 for line in modules.splitlines())
+    return {
+        "module_loaded": loaded,
+        "sysfs_module_present": Path(sys_module).is_dir(),
+        "transport": "NETLINK_USERSOCK",
+        "interface": "read-only",
+        "policy": "isolated lab mode only; no dynamic rules",
+    }
+
+
+def print_diagnostics(diagnostics, json_output=False):
+    if json_output:
+        print(json.dumps(diagnostics, sort_keys=True))
+        return
+    print("NETFW local diagnostics (read-only)")
+    for key, value in diagnostics.items():
+        print(f"  {key.replace('_', ' ')}: {value}")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Read-only NETFW Netlink client")
-    parser.add_argument("command", choices=("ping", "status"))
+    parser.add_argument("command", choices=("ping", "status", "diagnose"))
     parser.add_argument("--request-id", type=int, default=1)
+    parser.add_argument("--json", action="store_true", help="Machine-readable output")
     args = parser.parse_args(argv)
+    if args.command == "diagnose":
+        try:
+            data = read_local_diagnostics()
+        except OSError as exc:
+            print(f"netfw: {exc}", file=sys.stderr)
+            return 1
+        print_diagnostics(data, args.json)
+        return 0
     cmd = CMD_PING if args.command == "ping" else CMD_STATUS
     try:
         response = request(cmd, request_id=args.request_id)
     except (OSError, ValueError) as exc:
         print(f"netfw: {exc}", file=sys.stderr)
         return 1
-    print(f"NETFW {args.command.upper()} OK (request_id={response.request_id})")
-    if args.command == "status":
-        print("STATUS: endpoint reachable; live firewall counters unavailable")
+    if args.json:
+        print(json.dumps({"command": args.command,
+                          "request_id": response.request_id,
+                          "status": getattr(response, "status", 0),
+                          "note": ("endpoint reachable; no live counters" if
+                                   args.command == "status" else "acknowledged")},
+                         sort_keys=True))
+    else:
+        print(f"NETFW {args.command.upper()} OK (request_id={response.request_id})")
+        if args.command == "status":
+            print("STATUS: endpoint reachable; live firewall counters unavailable")
     return 0
 
 

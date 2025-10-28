@@ -528,3 +528,24 @@ Malformed outer Netlink envelopes remain ignored. Read-only operations only.
 - [ ] Commit November 27, 2026, 21:42 IST (planned Git metadata)
 
 **Next:** Phase 28 — Python CLI subcommands and read-only diagnostics.
+
+
+## Phase 28 — Python CLI subcommands and read-only diagnostics
+**Status:** Implemented; 222 Python tests targeted; Fedora kernel/runtime pending.
+
+- `diagnose` reads procfs/sysfs without a socket or elevated privileges.
+- `--json` supports automation for `diagnose`, `ping`, and `status`.
+- Missing procfs gracefully reports an error; Netlink requests still report nonzero failures.
+- No kernel changes and no policy changes; STATUS provides endpoint reachability only.
+
+**Fedora acceptance:**
+- [ ] `make clean && make check-build` (222 tests expected)
+- [ ] `make verify-build`
+- [ ] `python3 userspace/netfw_client.py diagnose --json` without sudo
+- [ ] `sudo bash scripts/test_failure_paths.sh`
+- [ ] `sudo bash scripts/test_verdict_regression.sh`
+- [ ] With module loaded, run CLI `ping --json` and `status --json`, then unload
+- [ ] Confirm no leftover module, veth or namespace
+- [ ] Commit with November 28, 2026, 21:53 IST metadata
+
+**Next:** Phase 29 — validated read-only rule-table snapshots (design milestone).

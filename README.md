@@ -383,3 +383,22 @@ errors, and uses nonzero exit codes on failure. STATUS is reachability-only,
 not true counters. `NETLINK_USERSOCK` is shared; this is not authenticated
 firewall administration. Phase 26 8-byte response parsing remains for existing
 unit-test fixture compatibility, although the Phase 27 kernel emits 12 bytes.
+
+
+## Phase 28 — read-only CLI diagnostics
+
+`python3 userspace/netfw_client.py diagnose` reads `/proc/modules` and
+`/sys/module/netfw_hello` without root or Netlink activity. Use `--json`
+for scripting. Existing `ping` and `status` also accept `--json`, but require
+a loaded Netlink endpoint. `status` confirms reachability only: it does not
+report live rule, packet or connection counts. Diagnostics do not mutate kernel
+state; no rule management is implemented yet.
+
+```bash
+python3 userspace/netfw_client.py diagnose
+python3 userspace/netfw_client.py diagnose --json
+sudo insmod kernel/netfw_hello.ko
+python3 userspace/netfw_client.py ping --json
+python3 userspace/netfw_client.py status --json
+sudo rmmod netfw_hello
+```
