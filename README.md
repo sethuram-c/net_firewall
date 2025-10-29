@@ -402,3 +402,25 @@ python3 userspace/netfw_client.py ping --json
 python3 userspace/netfw_client.py status --json
 sudo rmmod netfw_hello
 ```
+
+
+## Phase 29 — validated, read-only rule-table snapshots
+
+`kernel/netfw_snapshot.h` safely copies the bounded, ordered rule table under
+`spin_lock_bh`, with count and default action in one consistent snapshot.
+No table pointer escapes the lock. The demo snapshot is tested during module
+initialization; it is **not** exposed through Netlink and does not affect
+packet filtering. The snapshot API writes to caller-owned storage.
+
+The CLI can validate and display a trusted **offline** JSON example:
+
+```bash
+python3 userspace/netfw_client.py rules --file examples/rules_snapshot.json
+python3 userspace/netfw_client.py rules --file examples/rules_snapshot.json --json
+```
+
+Version=1; default action ACCEPT or DROP; at most 16 ordered rules; strict
+protocol, IPv4 CIDR, port, and interface validation. The CLI rejects unknown
+fields. **No live rule export, Netlink rules command, rule mutation, or runtime
+policy activation** exists in this phase. Do not confuse the example with
+the currently loaded firewall configuration.

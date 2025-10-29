@@ -11,6 +11,7 @@ import errno
 import json
 from pathlib import Path
 
+from netfw_rules import read_snapshot, format_snapshot
 from netfw_protocol import (CMD_PING, CMD_STATUS, RESPONSE_SIZE,
                             decode_request, decode_response, encode_request)
 
@@ -91,10 +92,23 @@ def print_diagnostics(diagnostics, json_output=False):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Read-only NETFW Netlink client")
-    parser.add_argument("command", choices=("ping", "status", "diagnose"))
+    parser.add_argument("command", choices=("ping", "status", "diagnose", "rules"))
     parser.add_argument("--request-id", type=int, default=1)
     parser.add_argument("--json", action="store_true", help="Machine-readable output")
+    parser.add_argument("--file", help="Offline JSON snapshot file (rules only)")
     args = parser.parse_args(argv)
+    if args.command == "rules":
+        if not args.file:
+            parser.error("rules requires --file; live rule export is not implemented")
+        try:
+            snapshot = read_snapshot(args.file)
+        except (OSError, ValueError, UnicodeError) as exc:
+            print(f"netfw: {exc}", file=sys.stderr)
+            return 1
+        print(json.dumps(snapshot, sort_keys=True) if args.json else format_snapshot(snapshot))
+        return 0
+    if args.file:
+        parser.error("--file is only supported for rules")
     if args.command == "diagnose":
         try:
             data = read_local_diagnostics()

@@ -549,3 +549,28 @@ Malformed outer Netlink envelopes remain ignored. Read-only operations only.
 - [ ] Commit with November 28, 2026, 21:53 IST metadata
 
 **Next:** Phase 29 — validated read-only rule-table snapshots (design milestone).
+
+
+## Phase 28 — Fedora validation reported by user
+- [x] All 222 Python tests passed; module build and `verify-build` successful on Fedora kernel 7.2.9-201.fc44.x86_64
+- [x] Read-only local diagnostics, PING and STATUS JSON verified
+- [x] Failure-path and ACCEPT/DROP regressions passed; module and lab resources cleaned
+- [x] Commit `96fc63b`; 28 commits confirmed
+
+## Phase 29 — bounded rule snapshots and offline inspector
+**Status:** Implemented; 231 Python tests targeted, Fedora build/runtime pending.
+
+- A new lock-protected, caller-owned snapshot captures all ordered rules, count and default policy consistently.
+- Initialization-only self-check covers snapshot contents and frees buffers on all paths.
+- Offline JSON schema and CLI `rules --file` (including `--json`), with tight validation and no kernel requests.
+- This is NOT a live rule-table API. No rule mutations or live filtering changes.
+
+**Fedora acceptance:**
+- [ ] `make clean && make check-build && make verify-build` (231 tests)
+- [ ] `python3 userspace/netfw_client.py rules --file examples/rules_snapshot.json --json`
+- [ ] `sudo bash scripts/test_failure_paths.sh`
+- [ ] `sudo bash scripts/test_verdict_regression.sh`
+- [ ] Manual Netlink PING/STATUS then unload; confirm no remaining resources
+- [ ] Commit November 29, 2026, 21:46 IST (planned metadata)
+
+**Next:** Phase 30 — bounded read-only Netlink rule snapshot transport.

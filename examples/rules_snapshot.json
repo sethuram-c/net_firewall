@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "default_action": "ACCEPT",
+  "rules": [
+    {"action": "DROP", "protocol": "UDP", "dst_port": 54321},
+    {"action": "ACCEPT", "protocol": "TCP", "dst_port": 443}
+  ]
+}

@@ -28,6 +28,7 @@
 #include "netfw_match.h"
 #include "netfw_policy.h"
 #include "netfw_table.h"
+#include "netfw_snapshot.h"
 #include "netfw_flow.h"
 #include "netfw_conn.h"
 #include "netfw_netlink.h"
@@ -376,6 +377,23 @@ static int __init netfw_hello_init(void)
                      netfw_table_evaluate(demo_table, 0, 0,
                                           IPPROTO_UDP, 0, htons(54322)) != NETFW_RULE_ACCEPT))
             err = -EINVAL;
+        /* Phase 29: verify immutable copy before the local table is cleared. */
+        if (!err) {
+            struct netfw_rule_snapshot *snapshot;
+
+            snapshot = kmalloc(sizeof(*snapshot), GFP_KERNEL);
+            if (!snapshot) {
+                err = -ENOMEM;
+            } else {
+                err = netfw_table_snapshot(demo_table, snapshot);
+                if (!err && (snapshot->count != 1 ||
+                             snapshot->default_action != NETFW_RULE_ACCEPT ||
+                             snapshot->rules[0].dst_port != 54321 ||
+                             snapshot->rules[0].action != NETFW_RULE_DROP))
+                    err = -EINVAL;
+                kfree(snapshot);
+            }
+        }
         netfw_table_clear(demo_table);
         kfree(demo_table);
         if (err)
