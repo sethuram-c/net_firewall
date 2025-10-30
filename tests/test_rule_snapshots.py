@@ -48,6 +48,6 @@ class RuleSnapshotTests(unittest.TestCase):
         self.assertIn("memcpy(out->rules",hdr)
         self.assertIn("count > NETFW_MAX_RULES",hdr)
         self.assertIn("netfw_table_snapshot(demo_table, snapshot)",mod)
-        self.assertNotIn("netfw_table_snapshot(",mod[:mod.index("static int __init")])
+        self.assertNotIn("netfw_table_snapshot(",mod[mod.index("static unsigned int netfw_observe"):mod.index("static struct nf_hook_ops")])
 
 if __name__ == "__main__": unittest.main()

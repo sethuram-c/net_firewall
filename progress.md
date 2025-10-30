@@ -574,3 +574,23 @@ Malformed outer Netlink envelopes remain ignored. Read-only operations only.
 - [ ] Commit November 29, 2026, 21:46 IST (planned metadata)
 
 **Next:** Phase 30 — bounded read-only Netlink rule snapshot transport.
+
+## Phase 30 — bounded live rule snapshot over Netlink
+**Status:** Implemented; 240 Python tests and Bash syntax passed locally. Fedora kernel build, privileged regression and live Netlink exchange pending.
+
+- Version-1 read-only `RULES` command 3; no rule mutations or new verdicts.
+- Kernel copies a bounded snapshot under table lock, then encodes a 16-byte header plus 0–16 wire rule descriptors outside the lock.
+- Live export table has zero rules and default ACCEPT; it is intentionally distinct from the existing `lab_drop` condition and offline sample.
+- Python validates exact wire lengths, limit, flags, reserved fields and replies, and labels the source `kernel-netlink`.
+- `rules --file` remains a distinct offline-only path.
+- Phase 29 source test updated: runtime read-only snapshot is now permitted, while the packet hook still may not evaluate the rule table.
+
+**Fedora acceptance:**
+- [ ] `make clean && make check-build && make verify-build` (240 tests)
+- [ ] `sudo bash scripts/test_failure_paths.sh` and `sudo bash scripts/test_verdict_regression.sh`
+- [ ] Load module; `python3 userspace/netfw_client.py rules --json` returns zero rules, default ACCEPT, source kernel-netlink
+- [ ] Compare `rules --file examples/rules_snapshot.json --json` (offline sample)
+- [ ] Verify PING/STATUS and unload with no remaining module or lab interface/network namespace
+- [ ] Commit with November 30, 2026, 21:52 IST planned metadata
+
+**Next:** Phase 31 — controlled rule-management protocol design, validation and permissions.

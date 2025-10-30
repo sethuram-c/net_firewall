@@ -44,6 +44,11 @@
  */
 #define NETFW_NL_PROTOCOL NETLINK_USERSOCK
 static struct sock *netfw_nl_sock;
+/* An initialized, non-configurable table; no live rules are installed.
+ * Its snapshot is authoritative: zero rules and default ACCEPT.
+ */
+static struct netfw_table netfw_export_table;
+
 
 /* Only request-shaped envelopes receive replies; malformed outer framing is
  * silently ignored because sequence and sender identity cannot be trusted.
@@ -55,6 +60,12 @@ static void netfw_nl_receive(struct sk_buff *skb)
     struct netfw_nl_response response;
     struct sk_buff *response_skb;
     struct nlmsghdr *response_hdr;
+    struct netfw_rule_snapshot snapshot;
+    struct netfw_nl_rules_header rules_header;
+    struct netfw_nl_rule_wire *wire;
+    size_t payload_size = sizeof(response);
+    size_t i;
+    bool rules_request = false;
     u32 portid;
     int status = 0;
     int ret;
@@ -81,20 +92,63 @@ static void netfw_nl_receive(struct sk_buff *skb)
             status = -EOPNOTSUPP;
     }
 
+    /* Snapshot only on an accepted RULES command. Never expose table pointers.
+     * This table has no writers in Phase 30, so it reports an empty policy.
+     */
+    rules_request = !status && request.command == NETFW_NL_CMD_RULES;
+    if (rules_request) {
+        status = netfw_table_snapshot(&netfw_export_table, &snapshot);
+        if (!status && snapshot.count > NETFW_MAX_RULES)
+            status = -EOVERFLOW;
+        if (!status) {
+            for (i = 0; i < snapshot.count; ++i) {
+                if (snapshot.rules[i].match_flags & NETFW_MATCH_IN_IFACE) {
+                    status = -EOPNOTSUPP;
+                    break;
+                }
+            }
+        }
+        if (!status)
+            payload_size = sizeof(rules_header) +
+                           snapshot.count * sizeof(struct netfw_nl_rule_wire);
+    }
     /* No mutations; invalid application payloads receive a bounded error. */
     response.request = request;
     response.request.reserved_be = 0; /* canonical reply even for bad request */
     response.status_be = cpu_to_be32((u32)status);
-    response_skb = nlmsg_new(sizeof(response), GFP_ATOMIC);
+    response_skb = nlmsg_new(payload_size, GFP_ATOMIC);
     if (!response_skb)
         return;
     response_hdr = nlmsg_put(response_skb, 0, nlh->nlmsg_seq,
-                             NLMSG_DONE, sizeof(response), 0);
+                             NLMSG_DONE, payload_size, 0);
     if (!response_hdr) {
         kfree_skb(response_skb);
         return;
     }
-    memcpy(nlmsg_data(response_hdr), &response, sizeof(response));
+    if (rules_request && !status) {
+        memset(&rules_header, 0, sizeof(rules_header));
+        rules_header.response = response;
+        rules_header.count = snapshot.count;
+        rules_header.default_action = snapshot.default_action;
+        memcpy(nlmsg_data(response_hdr), &rules_header, sizeof(rules_header));
+        wire = (struct netfw_nl_rule_wire *)((u8 *)nlmsg_data(response_hdr) +
+                                             sizeof(rules_header));
+        for (i = 0; i < snapshot.count; ++i) {
+            const struct netfw_rule *rule = &snapshot.rules[i];
+            memset(&wire[i], 0, sizeof(wire[i]));
+            wire[i].flags_be = cpu_to_be32(rule->match_flags);
+            wire[i].src_ip_be = rule->src_ip;
+            wire[i].src_mask_be = rule->src_mask;
+            wire[i].dst_ip_be = rule->dst_ip;
+            wire[i].dst_mask_be = rule->dst_mask;
+            wire[i].src_port_be = cpu_to_be16(rule->src_port);
+            wire[i].dst_port_be = cpu_to_be16(rule->dst_port);
+            wire[i].protocol = rule->protocol;
+            wire[i].action = rule->action;
+        }
+    } else {
+        memcpy(nlmsg_data(response_hdr), &response, sizeof(response));
+    }
     ret = netlink_unicast(netfw_nl_sock, response_skb, portid, MSG_DONTWAIT);
     if (ret < 0)
         pr_debug_ratelimited("netfw_hello: Netlink reply failed (%d)\n", ret);
@@ -508,6 +562,8 @@ static int __init netfw_hello_init(void)
         pr_err("netfw_hello: hook registration failed (%d)\n", err);
         goto err_free_label;
     }
+    /* The live export table is read-only and deliberately empty. */
+    netfw_table_init(&netfw_export_table, NETFW_RULE_ACCEPT);
     /* Register after Netfilter so errors can unwind the hook first. */
     {
         struct netlink_kernel_cfg cfg = { .input = netfw_nl_receive };
@@ -549,5 +605,5 @@ module_init(netfw_hello_init);
 module_exit(netfw_hello_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("NETFW learning project");
-MODULE_DESCRIPTION("Phase 27 Netlink error replies and CLI; lab verdict retained");
+MODULE_DESCRIPTION("Phase 30 read-only bounded Netlink snapshots; lab verdict retained");
 MODULE_VERSION("0.12");

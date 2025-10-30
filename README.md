@@ -424,3 +424,50 @@ protocol, IPv4 CIDR, port, and interface validation. The CLI rejects unknown
 fields. **No live rule export, Netlink rules command, rule mutation, or runtime
 policy activation** exists in this phase. Do not confuse the example with
 the currently loaded firewall configuration.
+
+## Phase 30 — live, bounded, read-only Netlink rules export
+
+The **read-only** command `python3 userspace/netfw_client.py rules --json` now asks
+our kernel Netlink endpoint for a rule-table snapshot, rather than relying on
+an offline JSON fixture. `rules --file examples/rules_snapshot.json --json` still
+uses the independent Phase 29 offline sample. Each output includes `source`,
+which distinguishes `kernel-netlink` from `offline-file`.
+
+**Crucial:** The kernel-export table is initialized empty, default ACCEPT,
+and never mutated in Phase 30. Therefore the live response is normally
+`{"default_action":"ACCEPT","rule_count":0,"rules":[],"source":"kernel-netlink", ...}`.
+This does *not* report the module's separately implemented opt-in `lab_drop`
+condition, and it does *not* mean the sample offline DROP rule is installed.
+No runtime rule policy is activated. Live packet filtering remains unchanged.
+
+Protocol command `3` uses the same 8-byte versioned request. Successful replies
+are 16 bytes (the 12-byte status response + one byte count, one byte default
+action, two zero reserved bytes) plus at most 16 packed 44-byte rule descriptors.
+Rules contain numeric flags, 4 network-order IPv4 address/mask values, two
+network-order ports, protocol, action, a zeroed 16-byte placeholder for a
+future interface field, and a zero 2-byte reserved field. No pointers, native
+struct padding, or kernel memory addresses cross the boundary. The worst-case
+application response is 720 bytes. Unexpected interface-match flags are
+rejected rather than misrepresented; Python checks exact lengths, limits,
+reserved fields, and protocol consistency.
+
+Run on Fedora after compiling:
+
+```bash
+make clean && make check-build && make verify-build
+sudo bash scripts/test_failure_paths.sh
+sudo bash scripts/test_verdict_regression.sh
+sudo insmod kernel/netfw_hello.ko
+python3 userspace/netfw_client.py rules --json
+python3 userspace/netfw_client.py rules --file examples/rules_snapshot.json --json
+python3 userspace/netfw_client.py ping --json
+python3 userspace/netfw_client.py status --json
+sudo rmmod netfw_hello
+lsmod | grep '^netfw_hello' || echo 'Module unloaded'
+ip link show nfwt10h
+sudo ip netns list
+```
+
+Source-level and Python tests do not substitute for Fedora compilation or
+privileged exchange testing. The Netlink endpoint still uses shared protocol
+number NETLINK_USERSOCK and may conflict with another owner.

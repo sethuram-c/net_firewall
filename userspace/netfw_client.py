@@ -1,6 +1,5 @@
-"""Phase 26: minimal Netlink PING/STATUS client for a loaded lab module.
+"""Read-only Netlink client: ping, status, rules (live/offline), diagnose.
 
-Usage: python3 userspace/netfw_client.py ping | status
 NETLINK_USERSOCK is shared, so kernel socket creation can fail if occupied.
 """
 import socket
@@ -12,7 +11,8 @@ import json
 from pathlib import Path
 
 from netfw_rules import read_snapshot, format_snapshot
-from netfw_protocol import (CMD_PING, CMD_STATUS, RESPONSE_SIZE,
+from netfw_protocol import (CMD_PING, CMD_STATUS, CMD_RULES, RESPONSE_SIZE,
+                            decode_rules_response, RULES_HEADER_SIZE, RULE_WIRE_SIZE, RULES_MAX,
                             decode_request, decode_response, encode_request)
 
 NETLINK_USERSOCK = 2
@@ -33,7 +33,11 @@ def make_message(command: int, request_id: int, sequence: int) -> bytes:
 def parse_reply(data: bytes, expected_command: int, expected_id: int,
                 expected_sequence: int):
     # Retain Phase 26 fixture compatibility for its old 8-byte acknowledgments.
-    if len(data) not in (HEADER.size + 8, HEADER.size + RESPONSE_SIZE):
+    if (expected_command == CMD_RULES and
+            HEADER.size + RULES_HEADER_SIZE <= len(data) <=
+            HEADER.size + RULES_HEADER_SIZE + RULES_MAX * RULE_WIRE_SIZE):
+        pass
+    elif len(data) not in (HEADER.size + 8, HEADER.size + RESPONSE_SIZE):
         raise ValueError("invalid Netlink response size")
     length, kind, flags, seq, pid = HEADER.unpack_from(data)
     if (length != len(data) or kind != NLMSG_DONE or
@@ -41,7 +45,14 @@ def parse_reply(data: bytes, expected_command: int, expected_id: int,
         raise ValueError("invalid Netlink response header")
     payload = data[HEADER.size:]
     response = (decode_request(payload) if len(payload) == 8 else
-                decode_response(payload))
+                decode_response(payload[:RESPONSE_SIZE]))
+    if expected_command == CMD_RULES and len(payload) > RESPONSE_SIZE:
+        if response.status:
+            raise ValueError("error reply must not include a snapshot")
+        snapshot = decode_rules_response(payload)
+        if snapshot["request_id"] != expected_id:
+            raise ValueError("rules response request ID mismatch")
+        return snapshot
     if response.command != expected_command or response.request_id != expected_id:
         raise ValueError("Netlink response does not match request")
     if hasattr(response, "status") and response.status:
@@ -98,10 +109,8 @@ def main(argv=None):
     parser.add_argument("--file", help="Offline JSON snapshot file (rules only)")
     args = parser.parse_args(argv)
     if args.command == "rules":
-        if not args.file:
-            parser.error("rules requires --file; live rule export is not implemented")
         try:
-            snapshot = read_snapshot(args.file)
+            snapshot = read_snapshot(args.file) if args.file else request(CMD_RULES, request_id=args.request_id)
         except (OSError, ValueError, UnicodeError) as exc:
             print(f"netfw: {exc}", file=sys.stderr)
             return 1

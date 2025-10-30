@@ -1,4 +1,4 @@
-"""Offline, read-only validated rule-snapshot viewer (NOT live Netlink export)."""
+"""Read-only rule snapshot validation and display (offline or live)."""
 import ipaddress
 import json
 from pathlib import Path
@@ -61,7 +61,7 @@ def read_snapshot(path):
 
 
 def format_snapshot(snapshot):
-    lines = [f"NETFW offline snapshot: {snapshot['rule_count']} rule(s)",
+    lines = [f"NETFW {snapshot.get('source', 'offline-file')} snapshot: {snapshot['rule_count']} rule(s)",
              f"Default policy: {snapshot['default_action']}"]
     for i, rule in enumerate(snapshot["rules"], 1):
         fields = ", ".join(f"{key}={val}" for key, val in rule.items() if key != "action")
