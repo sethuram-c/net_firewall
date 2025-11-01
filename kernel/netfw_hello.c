@@ -29,6 +29,7 @@
 #include "netfw_policy.h"
 #include "netfw_table.h"
 #include "netfw_snapshot.h"
+#include "netfw_manage.h"
 #include "netfw_flow.h"
 #include "netfw_conn.h"
 #include "netfw_netlink.h"
@@ -555,6 +556,44 @@ static int __init netfw_hello_init(void)
         if (err)
             goto err_free_label;
     }
+    /* Phase 31: management staging is deliberately init-only. The live
+     * Netlink RULES endpoint remains read-only and the table stays empty.
+     */
+    {
+        struct netfw_table *manage_demo;
+        struct netfw_rule candidate = {
+            .match_flags = NETFW_MATCH_PROTOCOL,
+            .protocol = IPPROTO_UDP,
+            .action = NETFW_RULE_DROP,
+        };
+        struct netfw_rule invalid = candidate;
+
+        manage_demo = kzalloc(sizeof(*manage_demo), GFP_KERNEL);
+        if (!manage_demo) {
+            err = -ENOMEM;
+            goto err_free_label;
+        }
+        netfw_table_init(manage_demo, NETFW_RULE_ACCEPT);
+        invalid.match_flags = NETFW_MATCH_IN_IFACE;
+        if (netfw_manage_replace(manage_demo, &candidate, 1,
+                                 NETFW_RULE_DROP, false) != -EPERM ||
+            manage_demo->count != 0 ||
+            netfw_manage_replace(manage_demo, &invalid, 1,
+                                 NETFW_RULE_DROP, true) != -EINVAL ||
+            manage_demo->count != 0 ||
+            netfw_manage_replace(manage_demo, &candidate, 1,
+                                 NETFW_RULE_DROP, true) ||
+            manage_demo->count != 1 ||
+            manage_demo->default_action != NETFW_RULE_DROP ||
+            netfw_manage_replace(manage_demo, NULL, 0,
+                                 NETFW_RULE_ACCEPT, true) ||
+            manage_demo->count != 0 ||
+            manage_demo->default_action != NETFW_RULE_ACCEPT)
+            err = -EINVAL;
+        kfree(manage_demo);
+        if (err)
+            goto err_free_label;
+    }
     pr_info("netfw_hello: rule descriptor ready (%zu bytes; inactive)\n",
             sizeof(struct netfw_rule));
     err = nf_register_net_hook(&init_net, &netfw_hook);
@@ -605,5 +644,5 @@ module_init(netfw_hello_init);
 module_exit(netfw_hello_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("NETFW learning project");
-MODULE_DESCRIPTION("Phase 30 read-only bounded Netlink snapshots; lab verdict retained");
+MODULE_DESCRIPTION("Phase 31 validated staged rule management; lab verdict retained");
 MODULE_VERSION("0.12");

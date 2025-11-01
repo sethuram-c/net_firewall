@@ -594,3 +594,32 @@ Malformed outer Netlink envelopes remain ignored. Read-only operations only.
 - [ ] Commit with November 30, 2026, 21:52 IST planned metadata
 
 **Next:** Phase 31 — controlled rule-management protocol design, validation and permissions.
+
+
+## Phase 30 — Fedora validation reported by user
+- [x] Fedora 44 kernel 7.2.9-201.fc44.x86_64: `make check-build` and `make verify-build` successful.
+- [x] All 240 Python tests and Bash checks passed.
+- [x] Both expected fault-injection failures and opt-in ACCEPT/DROP regression passed.
+- [x] Live Netlink RULES returned zero entries and default ACCEPT; PING and STATUS worked.
+- [x] Module, lab interface and network namespace cleanup verified.
+- [x] Git commit `121bed8`, 30 commits confirmed.
+
+## Phase 31 — Staged bounded rule replacement and authorization contract
+**Status:** Implemented; local tests complete, Fedora kernel and privileged tests pending.
+
+- Validates complete replacement candidate (0–16 rules) and default policy.
+- Rejects missing caller authorization with `-EPERM` and bad rules with `-EINVAL`.
+- Atomically publishes all rules, count and default policy under `spin_lock_bh`.
+- Rejects interface predicates until packet matching supports them.
+- Initialization-only smoke covers unauthorized, invalid, successful and clear operations.
+- No Netlink rule writes and no active rule enforcement.
+
+**Fedora checklist:**
+- [ ] `make clean && make check-build && make verify-build` (249 tests expected)
+- [ ] `sudo bash scripts/test_failure_paths.sh`
+- [ ] `sudo bash scripts/test_verdict_regression.sh`
+- [ ] Live RULES remains empty/ACCEPT, PING and STATUS unchanged
+- [ ] Unload and confirm no module, interface or network namespace remains
+- [ ] Git commit with November 1, 2026 + 30 days = December 1, 2026, 21:38 IST planned metadata
+
+**Next:** Phase 32 — sender-authenticated Netlink rule updates in an isolated lab.

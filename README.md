@@ -471,3 +471,24 @@ sudo ip netns list
 Source-level and Python tests do not substitute for Fedora compilation or
 privileged exchange testing. The Netlink endpoint still uses shared protocol
 number NETLINK_USERSOCK and may conflict with another owner.
+
+
+## Phase 31/35 — Controlled rule-management staging
+
+`kernel/netfw_manage.h` adds `netfw_manage_replace()` for a bounded (0–16)
+whole-table replacement. Authorization is an explicit **trusted kernel caller**
+precondition; the API returns `-EPERM` when it is false, `-EINVAL` for an
+invalid candidate/default policy, and publishes the full validated candidate
+under `spin_lock_bh`. Unsupported incoming-interface predicates are rejected.
+An empty authorized replacement clears all rules and sets a new default.
+
+**Security boundary:** Phase 31 does **not** accept Netlink write requests.
+No userspace field may supply authorization. A future Netlink write handler
+must verify the sending client's `CAP_NET_ADMIN` in the correct namespace before
+calling the kernel helper. The live exported table is still empty, read-only,
+and distinct from the existing `lab_drop` verdict.
+
+Validation: `make check-build`, `make verify-build`,
+`sudo bash scripts/test_failure_paths.sh`,
+`sudo bash scripts/test_verdict_regression.sh`, and live
+`python3 userspace/netfw_client.py rules --json` after loading the module.
