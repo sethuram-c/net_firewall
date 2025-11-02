@@ -11,7 +11,8 @@ import json
 from pathlib import Path
 
 from netfw_rules import read_snapshot, format_snapshot
-from netfw_protocol import (CMD_PING, CMD_STATUS, CMD_RULES, RESPONSE_SIZE,
+from netfw_protocol import (CMD_PING, CMD_STATUS, CMD_RULES, CMD_REPLACE, RESPONSE_SIZE,
+                            encode_replace_request,
                             decode_rules_response, RULES_HEADER_SIZE, RULE_WIRE_SIZE, RULES_MAX,
                             decode_request, decode_response, encode_request)
 
@@ -22,8 +23,8 @@ NLM_F_REQUEST = 1
 HEADER = struct.Struct("=IHHII")  # Native Netlink header (16 bytes)
 
 
-def make_message(command: int, request_id: int, sequence: int) -> bytes:
-    payload = encode_request(command, request_id)
+def make_message(command: int, request_id: int, sequence: int, payload=None) -> bytes:
+    payload = encode_request(command, request_id) if payload is None else payload
     if type(sequence) is not int or not 0 <= sequence <= 0xFFFFFFFF:
         raise ValueError("sequence must be an unsigned 32-bit integer")
     return HEADER.pack(HEADER.size + len(payload), NLMSG_REQUEST_TYPE,
@@ -63,12 +64,12 @@ def parse_reply(data: bytes, expected_command: int, expected_id: int,
     return response
 
 
-def request(command: int, request_id: int = 1, sequence: int = 1):
+def request(command: int, request_id: int = 1, sequence: int = 1, payload=None):
     with socket.socket(socket.AF_NETLINK, socket.SOCK_RAW,
                        NETLINK_USERSOCK) as sock:
         sock.settimeout(2.0)
         sock.bind((0, 0))
-        sock.sendto(make_message(command, request_id, sequence), (0, 0))
+        sock.sendto(make_message(command, request_id, sequence, payload), (0, 0))
         data, address = sock.recvfrom(4096)
         if address[0] != 0:
             raise ValueError("response was not sent by kernel")
@@ -87,8 +88,8 @@ def read_local_diagnostics(proc_modules="/proc/modules", sys_module="/sys/module
         "module_loaded": loaded,
         "sysfs_module_present": Path(sys_module).is_dir(),
         "transport": "NETLINK_USERSOCK",
-        "interface": "read-only",
-        "policy": "isolated lab mode only; no dynamic rules",
+        "interface": "authenticated staging writes; no live rule enforcement",
+        "policy": "isolated lab verdict only; staging table is not enforced",
     }
 
 
@@ -103,11 +104,28 @@ def print_diagnostics(diagnostics, json_output=False):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Read-only NETFW Netlink client")
-    parser.add_argument("command", choices=("ping", "status", "diagnose", "rules"))
+    parser.add_argument("command", choices=("ping", "status", "diagnose", "rules", "apply"))
     parser.add_argument("--request-id", type=int, default=1)
     parser.add_argument("--json", action="store_true", help="Machine-readable output")
     parser.add_argument("--file", help="Offline JSON snapshot file (rules only)")
     args = parser.parse_args(argv)
+    if args.command == "apply":
+        if not args.file:
+            parser.error("apply requires --file with a validated JSON snapshot")
+        try:
+            snapshot = read_snapshot(args.file)
+            payload = encode_replace_request({k: snapshot[k] for k in
+                    ("version", "default_action", "rules")}, args.request_id)
+            reply = request(CMD_REPLACE, request_id=args.request_id, payload=payload)
+        except (OSError, ValueError, UnicodeError) as exc:
+            print(f"netfw: {exc}", file=sys.stderr)
+            return 1
+        result = {"command": "apply", "request_id": reply.request_id,
+                  "status": getattr(reply, "status", 0),
+                  "note": "staging table only; NOT active packet enforcement"}
+        print(json.dumps(result, sort_keys=True) if args.json else
+              "NETFW staging rules replaced; packet verdicts unchanged")
+        return 0
     if args.command == "rules":
         try:
             snapshot = read_snapshot(args.file) if args.file else request(CMD_RULES, request_id=args.request_id)
@@ -117,7 +135,7 @@ def main(argv=None):
         print(json.dumps(snapshot, sort_keys=True) if args.json else format_snapshot(snapshot))
         return 0
     if args.file:
-        parser.error("--file is only supported for rules")
+        parser.error("--file is only supported for rules and apply")
     if args.command == "diagnose":
         try:
             data = read_local_diagnostics()

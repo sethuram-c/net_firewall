@@ -492,3 +492,19 @@ Validation: `make check-build`, `make verify-build`,
 `sudo bash scripts/test_failure_paths.sh`,
 `sudo bash scripts/test_verdict_regression.sh`, and live
 `python3 userspace/netfw_client.py rules --json` after loading the module.
+
+
+## Phase 32 — Authenticated Netlink staging updates (NOT live enforcement)
+
+The new `apply --file` command atomically replaces the **staging/export** rule table.
+Linux checks the sending socket's `CAP_NET_ADMIN` with `netlink_capable(skb, CAP_NET_ADMIN)` before accepting it. `rules --json` displays the staging snapshot.
+
+```bash
+sudo insmod kernel/netfw_hello.ko
+sudo python3 userspace/netfw_client.py apply --file examples/rules_snapshot.json --json
+python3 userspace/netfw_client.py rules --json
+sudo rmmod netfw_hello
+```
+
+The `lab_drop` lab policy is **unaffected**, and the staging rules are **not** used in the Netfilter packet hook. Do not assume `DROP` staged via Netlink drops live packets.
+An unprivileged apply should return `EPERM`; an invalid candidate must not partially update the table. Maximum 16 rules, no interface predicates, no background writer, and no root-free bypass. The Netlink socket is shared `NETLINK_USERSOCK` and should be used only in the isolated lab.

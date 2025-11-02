@@ -44,7 +44,8 @@ class NetlinkSocketTests(unittest.TestCase):
 
     def test_strict_length_and_version_validation(self):
         self.assertIn('nlmsg_ok(nlh, skb->len)', self.kernel)
-        self.assertIn('nlh->nlmsg_len != nlmsg_msg_size', self.kernel)
+        self.assertIn('nlmsg_len(nlh) < NETFW_NL_PAYLOAD_BYTES', self.kernel)
+        self.assertIn('request_payload != sizeof(request)', self.kernel)
         self.assertIn('netfw_nl_valid_request(&request)', self.kernel)
 
     def test_sender_identity_and_safe_allocation(self):

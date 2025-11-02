@@ -6,9 +6,10 @@ VERSION = 1
 CMD_PING = 1
 CMD_STATUS = 2
 CMD_RULES = 3
+CMD_REPLACE = 4
 PAYLOAD_FORMAT = "!BBHI"  # network byte order: u8, u8, u16, u32
 PAYLOAD_SIZE = struct.calcsize(PAYLOAD_FORMAT)
-COMMANDS = frozenset((CMD_PING, CMD_STATUS, CMD_RULES))
+COMMANDS = frozenset((CMD_PING, CMD_STATUS, CMD_RULES, CMD_REPLACE))
 
 
 @dataclass(frozen=True)
@@ -97,3 +98,37 @@ def decode_rules_response(payload: bytes) -> dict:
         rules.append(rule)
     return {"version": version, "default_action": "ACCEPT" if default == 0 else "DROP",
             "rule_count": count, "rules": rules, "source": "kernel-netlink", "request_id": request_id}
+
+
+def encode_replace_request(snapshot: dict, request_id: int = 1) -> bytes:
+    """Validate a full offline JSON snapshot and encode an atomic replacement."""
+    import ipaddress
+    from netfw_rules import validate_snapshot
+    validated = validate_snapshot(snapshot)
+    rules = validated["rules"]
+    if any("in_iface" in rule for rule in rules):
+        raise ValueError("interface matching is not supported by the staging wire protocol")
+    if len(rules) > RULES_MAX:
+        raise ValueError("too many rules")
+    header = (encode_request(CMD_REPLACE, request_id) +
+              struct.pack("!iBBH", 0, len(rules),
+                          0 if validated["default_action"] == "ACCEPT" else 1, 0))
+    encoded = []
+    for rule in rules:
+        flags = 0
+        sip = smask = dip = dmask = sport = dport = proto = 0
+        if "src_ip" in rule:
+            ip = ipaddress.IPv4Network(rule["src_ip"], strict=False)
+            flags |= 1; sip = int(ip.network_address); smask = int(ip.netmask)
+        if "dst_ip" in rule:
+            ip = ipaddress.IPv4Network(rule["dst_ip"], strict=False)
+            flags |= 2; dip = int(ip.network_address); dmask = int(ip.netmask)
+        if "src_port" in rule: flags |= 4; sport = rule["src_port"]
+        if "dst_port" in rule: flags |= 8; dport = rule["dst_port"]
+        if "protocol" in rule:
+            flags |= 16; proto = {"ICMP": 1, "TCP": 6, "UDP": 17}[rule["protocol"]]
+        encoded.append(struct.pack(RULE_WIRE_FORMAT, flags, sip, smask, dip,
+                                   dmask, sport, dport, proto,
+                                   0 if rule["action"] == "ACCEPT" else 1,
+                                   bytes(16), 0))
+    return header + b"".join(encoded)

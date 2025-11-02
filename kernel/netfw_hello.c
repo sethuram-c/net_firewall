@@ -20,6 +20,7 @@
 #include <net/ip.h>
 /* Phase 26: one initial-network-namespace Netlink endpoint. */
 #include <linux/netlink.h>
+#include <linux/capability.h>
 #include <net/sock.h>
 #include <linux/socket.h>
 #include <linux/byteorder/generic.h>
@@ -45,8 +46,8 @@
  */
 #define NETFW_NL_PROTOCOL NETLINK_USERSOCK
 static struct sock *netfw_nl_sock;
-/* An initialized, non-configurable table; no live rules are installed.
- * Its snapshot is authoritative: zero rules and default ACCEPT.
+/* Staging/export table; authenticated updates are readable over Netlink.
+ * NOT referenced by the live packet verdict hook.
  */
 static struct netfw_table netfw_export_table;
 
@@ -64,6 +65,11 @@ static void netfw_nl_receive(struct sk_buff *skb)
     struct netfw_rule_snapshot snapshot;
     struct netfw_nl_rules_header rules_header;
     struct netfw_nl_rule_wire *wire;
+    struct netfw_rule replacement[NETFW_MAX_RULES];
+    struct netfw_nl_rules_header replace_header;
+    const struct netfw_nl_rule_wire *incoming;
+    size_t request_payload;
+    bool replace_request = false;
     size_t payload_size = sizeof(response);
     size_t i;
     bool rules_request = false;
@@ -75,10 +81,11 @@ static void netfw_nl_receive(struct sk_buff *skb)
         return;
     nlh = nlmsg_hdr(skb);
     if (!nlmsg_ok(nlh, skb->len) ||
-        nlh->nlmsg_len != nlmsg_msg_size(NETFW_NL_PAYLOAD_BYTES) ||
+        nlmsg_len(nlh) < NETFW_NL_PAYLOAD_BYTES ||
         nlh->nlmsg_type != NLMSG_MIN_TYPE ||
         (nlh->nlmsg_flags & ~(NLM_F_REQUEST)))
         return;
+    request_payload = nlmsg_len(nlh);
     memcpy(&request, nlmsg_data(nlh), sizeof(request));
     portid = NETLINK_CB(skb).portid;
     if (!portid)
@@ -93,8 +100,61 @@ static void netfw_nl_receive(struct sk_buff *skb)
             status = -EOPNOTSUPP;
     }
 
+    /* Authenticated replacement affects ONLY the export/staging table.
+     * Never wire this table into the Netfilter verdict hook in this phase.
+     * Credentials come from the sending skb, not application payload fields.
+     */
+    replace_request = !status && request.command == NETFW_NL_CMD_REPLACE;
+    if (replace_request) {
+        if (!netlink_capable(skb, CAP_NET_ADMIN)) {
+            status = -EPERM;
+        } else if (request_payload < sizeof(replace_header)) {
+            status = -EINVAL;
+        } else {
+            memcpy(&replace_header, nlmsg_data(nlh), sizeof(replace_header));
+            if (replace_header.response.status_be ||
+                replace_header.reserved_be ||
+                replace_header.count > NETFW_MAX_RULES ||
+                replace_header.default_action > NETFW_RULE_DROP ||
+                request_payload != sizeof(replace_header) +
+                replace_header.count * sizeof(struct netfw_nl_rule_wire)) {
+                status = -EINVAL;
+            } else {
+                incoming = (const struct netfw_nl_rule_wire *)
+                    ((const u8 *)nlmsg_data(nlh) + sizeof(replace_header));
+                memset(replacement, 0, sizeof(replacement));
+                for (i = 0; i < replace_header.count; ++i) {
+                    struct netfw_nl_rule_wire item;
+                    struct netfw_rule *rule = &replacement[i];
+                    memcpy(&item, &incoming[i], sizeof(item));
+                    if (item.reserved_be ||
+                        memchr_inv(item.iface, 0, sizeof(item.iface)) ||
+                        (be32_to_cpu(item.flags_be) & ~0x1fU)) {
+                        status = -EINVAL;
+                        break;
+                    }
+                    rule->match_flags = be32_to_cpu(item.flags_be);
+                    rule->src_ip = item.src_ip_be;
+                    rule->src_mask = item.src_mask_be;
+                    rule->dst_ip = item.dst_ip_be;
+                    rule->dst_mask = item.dst_mask_be;
+                    rule->src_port = be16_to_cpu(item.src_port_be);
+                    rule->dst_port = be16_to_cpu(item.dst_port_be);
+                    rule->protocol = item.protocol;
+                    rule->action = item.action;
+                }
+                if (!status)
+                    status = netfw_manage_replace(&netfw_export_table,
+                        replacement, replace_header.count,
+                        replace_header.default_action, true);
+            }
+        }
+    }
+    if (!replace_request && request_payload != sizeof(request))
+        status = -EINVAL;
+
     /* Snapshot only on an accepted RULES command. Never expose table pointers.
-     * This table has no writers in Phase 30, so it reports an empty policy.
+     * A validated staging update can now be observed through this endpoint.
      */
     rules_request = !status && request.command == NETFW_NL_CMD_RULES;
     if (rules_request) {
@@ -113,7 +173,7 @@ static void netfw_nl_receive(struct sk_buff *skb)
             payload_size = sizeof(rules_header) +
                            snapshot.count * sizeof(struct netfw_nl_rule_wire);
     }
-    /* No mutations; invalid application payloads receive a bounded error. */
+    /* Canonical 12-byte reply for replacement and errors. */
     response.request = request;
     response.request.reserved_be = 0; /* canonical reply even for bad request */
     response.status_be = cpu_to_be32((u32)status);
@@ -601,7 +661,7 @@ static int __init netfw_hello_init(void)
         pr_err("netfw_hello: hook registration failed (%d)\n", err);
         goto err_free_label;
     }
-    /* The live export table is read-only and deliberately empty. */
+    /* Start with an empty staging table; privileged writes are permitted. */
     netfw_table_init(&netfw_export_table, NETFW_RULE_ACCEPT);
     /* Register after Netfilter so errors can unwind the hook first. */
     {
@@ -644,5 +704,5 @@ module_init(netfw_hello_init);
 module_exit(netfw_hello_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("NETFW learning project");
-MODULE_DESCRIPTION("Phase 31 validated staged rule management; lab verdict retained");
+MODULE_DESCRIPTION("Phase 32 authenticated staging Netlink updates; lab verdict retained");
 MODULE_VERSION("0.12");

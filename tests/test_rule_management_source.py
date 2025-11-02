@@ -23,6 +23,8 @@ class RuleManagementTests(unittest.TestCase):
         self.assertIn("manage_demo", MOD)
         self.assertIn("netfw_manage_replace(manage_demo", MOD)
         self.assertIn("return NF_DROP;", MOD)
-        self.assertNotIn("netfw_manage_replace(&netfw_export_table", MOD)
+        self.assertIn("netfw_manage_replace(&netfw_export_table", MOD)
+        hook = MOD.split("static unsigned int netfw_observe", 1)[1].split("static int __init", 1)[0]
+        self.assertNotIn("netfw_export_table", hook)
 
 if __name__ == "__main__": unittest.main()

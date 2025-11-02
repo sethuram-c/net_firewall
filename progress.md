@@ -623,3 +623,16 @@ Malformed outer Netlink envelopes remain ignored. Read-only operations only.
 - [ ] Git commit with November 1, 2026 + 30 days = December 1, 2026, 21:38 IST planned metadata
 
 **Next:** Phase 32 — sender-authenticated Netlink rule updates in an isolated lab.
+
+
+## Phase 32 — Authenticated Netlink staging updates
+**Status:** Local Python and shell checks complete. Fedora kernel build, CAP_NET_ADMIN authorization behavior and runtime test pending.
+
+- Authenticated sender check uses kernel's Netlink skb credentials, not a claimed UID in payload.
+- Strict fixed-size bounded framing; up to 16 wire rules; decode before atomically replacing staging table.
+- Python `apply --file` validates JSON, encodes 16-byte header plus up to 16 44-byte entries.
+- Staging table can be inspected using live `rules --json`; **it does not participate in Netfilter verdict decisions**.
+- Check privileged successful update, unprivileged `EPERM`, rejection of invalid file, preserving table on error, old PING/STATUS and lab regressions.
+- Git metadata planned: December 2, 2026, 21:41 IST.
+
+**Next:** Phase 33 — isolated rule enforcement with strict opt-in and regression tests.

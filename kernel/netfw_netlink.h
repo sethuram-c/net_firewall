@@ -10,6 +10,7 @@
 #define NETFW_NL_CMD_PING 1
 #define NETFW_NL_CMD_STATUS 2
 #define NETFW_NL_CMD_RULES 3
+#define NETFW_NL_CMD_REPLACE 4
 #define NETFW_NL_RULES_HEADER_BYTES 16
 #define NETFW_NL_RULE_WIRE_BYTES 44
 #define NETFW_NL_PAYLOAD_BYTES 8
@@ -29,7 +30,8 @@ static inline bool netfw_nl_valid_request(const struct netfw_nl_request *req)
         return false;
     return req->command == NETFW_NL_CMD_PING ||
            req->command == NETFW_NL_CMD_STATUS ||
-           req->command == NETFW_NL_CMD_RULES;
+           req->command == NETFW_NL_CMD_RULES ||
+           req->command == NETFW_NL_CMD_REPLACE;
 }
 
 /* Replies preserve the request header and append a signed errno-style status. */
