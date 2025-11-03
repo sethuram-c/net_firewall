@@ -636,3 +636,15 @@ Malformed outer Netlink envelopes remain ignored. Read-only operations only.
 - Git metadata planned: December 2, 2026, 21:41 IST.
 
 **Next:** Phase 33 — isolated rule enforcement with strict opt-in and regression tests.
+
+
+## Phase 33/35 — Isolated staged UDP rule enforcement
+- [x] Add read-only-at-load `lab_rules` opt-in switch (disabled by default).
+- [x] Gate staging-table evaluation by ingress interface, destination IPv4, transport validity and protocol.
+- [x] Preserve legacy `lab_drop` and single packet-drop return.
+- [x] Add isolated veth/network-namespace positive and negative regression script.
+- [x] Add 9 unprivileged source tests; total target: 267.
+- [ ] Verify Fedora kernel 7.2.9 compilation and privileged isolated regression.
+- [ ] Verify cleanup and commit on Fedora.
+
+Note: Phase 32 authentication/privileged tests have not been confirmed on the user's Fedora host as of packaging Phase 33; run them first.

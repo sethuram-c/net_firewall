@@ -46,9 +46,7 @@
  */
 #define NETFW_NL_PROTOCOL NETLINK_USERSOCK
 static struct sock *netfw_nl_sock;
-/* Staging/export table; authenticated updates are readable over Netlink.
- * NOT referenced by the live packet verdict hook.
- */
+/* Authenticated staging table: only consulted under the Phase 33 lab gate. */
 static struct netfw_table netfw_export_table;
 
 
@@ -100,9 +98,8 @@ static void netfw_nl_receive(struct sk_buff *skb)
             status = -EOPNOTSUPP;
     }
 
-    /* Authenticated replacement affects ONLY the export/staging table.
-     * Never wire this table into the Netfilter verdict hook in this phase.
-     * Credentials come from the sending skb, not application payload fields.
+    /* Only privileged Netlink requests replace the staged rule set.
+     * Packet evaluation is additionally restricted to opt-in lab traffic.
      */
     replace_request = !status && request.command == NETFW_NL_CMD_REPLACE;
     if (replace_request) {
@@ -219,6 +216,10 @@ static char *netfw_message;
 static char *netfw_label;
 /* Explicit opt-in; immutable while loaded. Default behavior remains accept. */
 static bool lab_drop;
+/* Phase 33: separately opt-in, lab-only staged UDP rule enforcement. */
+static bool lab_rules;
+module_param(lab_rules, bool, 0444);
+MODULE_PARM_DESC(lab_rules, "Evaluate staged UDP rules only on nfwt10h to 198.18.0.2");
 module_param(lab_drop, bool, 0444);
 MODULE_PARM_DESC(lab_drop, "Drop only UDP/54321 to 198.18.0.2 on nfwt10h");
 /* 0: normal, 1: fail before first allocation, 2: fail after first. */
@@ -242,6 +243,7 @@ static unsigned int netfw_observe(void *priv, struct sk_buff *skb,
     const struct tcphdr *tcp;
     const struct udphdr *udp;
     const struct icmphdr *icmp;
+    bool staged_drop;
 
     if (!skb)
         return NF_ACCEPT;
@@ -287,10 +289,22 @@ static unsigned int netfw_observe(void *priv, struct sk_buff *skb,
              * lab ingress interface + destination IP + UDP port.
              * No packet modification and no dynamic allocation in hook.
              */
+            /* Phase 33: both gates require the dedicated lab ingress and IP.
+             * Only UDP with a validated transport header reaches this code.
+             * The staged table is NEVER consulted outside that lab scope.
+             */
+            staged_drop = lab_rules && state && state->in &&
+                !strncmp(state->in->name, NETFW_LAB_IFACE, IFNAMSIZ) &&
+                ntohl(iph->daddr) == NETFW_LAB_IPV4 &&
+                netfw_table_evaluate(&netfw_export_table, iph->saddr,
+                    iph->daddr, IPPROTO_UDP, udp->source, udp->dest) ==
+                    NETFW_RULE_DROP;
             if (lab_drop && state && state->in &&
                 !strncmp(state->in->name, NETFW_LAB_IFACE, IFNAMSIZ) &&
                 ntohl(iph->daddr) == NETFW_LAB_IPV4 &&
-                ntohs(udp->dest) == NETFW_LAB_UDP_PORT) {
+                ntohs(udp->dest) == NETFW_LAB_UDP_PORT)
+                staged_drop = true;
+            if (staged_drop) {
                 pr_info_ratelimited("netfw_hello: LAB_DROP UDP %pI4:%u -> %pI4:%u\n",
                                     &iph->saddr, ntohs(udp->source),
                                     &iph->daddr, ntohs(udp->dest));
@@ -656,13 +670,14 @@ static int __init netfw_hello_init(void)
     }
     pr_info("netfw_hello: rule descriptor ready (%zu bytes; inactive)\n",
             sizeof(struct netfw_rule));
+    /* Initialize before registration: the hook may execute immediately. */
+    netfw_table_init(&netfw_export_table, NETFW_RULE_ACCEPT);
     err = nf_register_net_hook(&init_net, &netfw_hook);
     if (err) {
         pr_err("netfw_hello: hook registration failed (%d)\n", err);
         goto err_free_label;
     }
-    /* Start with an empty staging table; privileged writes are permitted. */
-    netfw_table_init(&netfw_export_table, NETFW_RULE_ACCEPT);
+    /* The initialized staging table may now receive privileged writes. */
     /* Register after Netfilter so errors can unwind the hook first. */
     {
         struct netlink_kernel_cfg cfg = { .input = netfw_nl_receive };
@@ -704,5 +719,5 @@ module_init(netfw_hello_init);
 module_exit(netfw_hello_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("NETFW learning project");
-MODULE_DESCRIPTION("Phase 32 authenticated staging Netlink updates; lab verdict retained");
+MODULE_DESCRIPTION("Phase 33 opt-in lab-only staged UDP enforcement; default unchanged");
 MODULE_VERSION("0.12");

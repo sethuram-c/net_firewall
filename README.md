@@ -508,3 +508,12 @@ sudo rmmod netfw_hello
 
 The `lab_drop` lab policy is **unaffected**, and the staging rules are **not** used in the Netfilter packet hook. Do not assume `DROP` staged via Netlink drops live packets.
 An unprivileged apply should return `EPERM`; an invalid candidate must not partially update the table. Maximum 16 rules, no interface predicates, no background writer, and no root-free bypass. The Netlink socket is shared `NETLINK_USERSOCK` and should be used only in the isolated lab.
+
+
+## Phase 33 — opt-in, isolated staged rule enforcement
+
+New immutable-at-load `lab_rules=1` parameter permits the staged rule table to decide **UDP** verdicts **only** for packets arriving on `nfwt10h` with destination `198.18.0.2` and a validated UDP header. It is disabled by default; `lab_drop` retains its existing independent UDP/54321 demonstration. The table's first-match policy applies within the lab boundary, and its default action is used if no rules match. No packets on other interfaces or to other destination IPs consult staged rules. TCP, ICMP, fragmented non-initial packets, and malformed UDP remain unaffected.
+
+**Safety:** Run only on a disposable VM you administer. The staging table is populated by an authenticated `CAP_NET_ADMIN` Netlink `apply`. Test with `sudo bash scripts/test_staged_lab_rules.sh` after `make check-build`; the test creates a temporary network namespace, applies a UDP DROP rule, verifies UDP 54322 is accepted and 54321 is dropped, then unloads the module and deletes interfaces/namespace via a cleanup trap. Never activate `lab_rules=1` on general production network interfaces. The script explicitly refuses preexisting lab interfaces and loaded modules. Existing `sudo bash scripts/test_verdict_regression.sh` still tests legacy behavior.
+
+This is deliberately restricted demonstration enforcement, **not a full dynamic stateful firewall**. The connection table remains disconnected from packet decisions.

@@ -32,7 +32,8 @@ class TableSourceTests(unittest.TestCase):
         self.assertIn('netfw_table_add(demo_table, &drop)', MODULE)
         self.assertIn('kfree(demo_table)', MODULE)
         hook = MODULE.split('static unsigned int netfw_observe',1)[1].split('static struct nf_hook_ops',1)[0]
-        self.assertNotIn('netfw_table_evaluate', hook)
+        self.assertIn('lab_rules && state && state->in', hook)
+        self.assertIn('netfw_table_evaluate(&netfw_export_table', hook)
 
 if __name__ == '__main__':
     unittest.main()

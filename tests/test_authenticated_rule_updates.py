@@ -44,7 +44,8 @@ class AuthenticatedRuleUpdates(unittest.TestCase):
     def test_isolated_from_packet_path(self):
         code = (ROOT / "kernel/netfw_hello.c").read_text()
         hook = code.split("static unsigned int netfw_observe", 1)[1].split("static int __init", 1)[0]
-        self.assertNotIn("netfw_export_table", hook)
+        self.assertIn("netfw_table_evaluate(&netfw_export_table", hook)
+        self.assertIn("lab_rules && state && state->in", hook)
     def test_cli_apply(self):
         code = (ROOT / "userspace/netfw_client.py").read_text()
         self.assertIn('args.command == "apply"', code)
