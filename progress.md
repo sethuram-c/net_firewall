@@ -648,3 +648,17 @@ Malformed outer Netlink envelopes remain ignored. Read-only operations only.
 - [ ] Verify cleanup and commit on Fedora.
 
 Note: Phase 32 authentication/privileged tests have not been confirmed on the user's Fedora host as of packaging Phase 33; run them first.
+
+
+## Phase 34/35 — Security hardening and expanded isolated regression
+**Status:** Implementation complete, local source checks pending Fedora kernel and privileged verification.
+
+- [x] Decline staged rule evaluation on IPv4 fragmented datagrams (MF or nonzero offset).
+- [x] Reject batched/trailing Netlink envelope bytes.
+- [x] Add permission-safe `bash` runnable isolated regression for opt-out, opt-in, rule replacement, rejection, reload, clear and cleanup.
+- [x] Add 9 source tests (276 expected total) and include script in `make check`.
+- [ ] Fedora kernel 7.2.9 compilation and full tests.
+- [ ] Privileged failure-path, legacy lab, staged lab and Phase 34 extended regression.
+- [ ] Confirm teardown and commit with planned 2026-12-04 21:44 +05:30 metadata.
+
+**Next:** Phase 35 — final audit, packaging and demo runbook.

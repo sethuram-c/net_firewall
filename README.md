@@ -517,3 +517,11 @@ New immutable-at-load `lab_rules=1` parameter permits the staged rule table to d
 **Safety:** Run only on a disposable VM you administer. The staging table is populated by an authenticated `CAP_NET_ADMIN` Netlink `apply`. Test with `sudo bash scripts/test_staged_lab_rules.sh` after `make check-build`; the test creates a temporary network namespace, applies a UDP DROP rule, verifies UDP 54322 is accepted and 54321 is dropped, then unloads the module and deletes interfaces/namespace via a cleanup trap. Never activate `lab_rules=1` on general production network interfaces. The script explicitly refuses preexisting lab interfaces and loaded modules. Existing `sudo bash scripts/test_verdict_regression.sh` still tests legacy behavior.
 
 This is deliberately restricted demonstration enforcement, **not a full dynamic stateful firewall**. The connection table remains disconnected from packet decisions.
+
+## Phase 34/35 — Hardening and extended isolated regression
+
+- The **staged** rule path now declines IPv4 packets with MF or any fragment offset: no port-based assertion is made for incomplete datagrams. Like earlier malformed/unsupported traffic, these are **accepted**, not safely filtered; production firewalls require a documented fragment policy and defragmentation strategy. The original `lab_drop` laboratory rule is unchanged.
+- Netlink handles exactly one application envelope per skb and rejects trailing/batched framing.
+- `sudo bash scripts/test_lab_hardening.sh` exercises disabled enforcement, module reload (no persistent staging state), staged positive/negative UDP cases, invalid input and atomicity, empty-table reset, and cleanup in an isolated veth/netns lab. Script refuses an existing module or interface; **run only in a disposable VM**.
+- This phase does not promise full hardening: UDP spoofing, TCP stateful enforcement, fragments, network namespace isolation and a dedicated Generic Netlink family are future concerns.
+- Verification: `make clean && make check-build && make verify-build`; then privileged `sudo bash scripts/test_failure_paths.sh`, `sudo bash scripts/test_verdict_regression.sh`, `sudo bash scripts/test_staged_lab_rules.sh`, `sudo bash scripts/test_lab_hardening.sh`. Kernel build and privileged tests must run on Fedora.

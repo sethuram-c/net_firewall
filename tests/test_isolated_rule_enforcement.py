@@ -14,7 +14,7 @@ class Phase33Tests(unittest.TestCase):
         self.assertEqual(M.count('return NF_DROP;'),1)
     def test_bound_to_lab_if_and_destination(self):
         hook=M.split('static unsigned int netfw_observe',1)[1].split('static struct nf_hook_ops',1)[0]
-        self.assertIn('lab_rules && state && state->in',hook)
+        self.assertIn('lab_rules &&\n                !(ntohs(iph->frag_off) & (IP_MF | IP_OFFSET)) &&\n                state && state->in',hook)
         self.assertIn('state->in->name, NETFW_LAB_IFACE',hook)
         self.assertIn('ntohl(iph->daddr) == NETFW_LAB_IPV4',hook)
     def test_validated_udp_only(self):

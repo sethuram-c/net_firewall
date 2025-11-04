@@ -24,6 +24,7 @@
 #include <net/sock.h>
 #include <linux/socket.h>
 #include <linux/byteorder/generic.h>
+#include <linux/netlink.h>
 
 #include "netfw_rule.h"
 #include "netfw_match.h"
@@ -79,6 +80,7 @@ static void netfw_nl_receive(struct sk_buff *skb)
         return;
     nlh = nlmsg_hdr(skb);
     if (!nlmsg_ok(nlh, skb->len) ||
+        NLMSG_ALIGN(nlh->nlmsg_len) != skb->len ||
         nlmsg_len(nlh) < NETFW_NL_PAYLOAD_BYTES ||
         nlh->nlmsg_type != NLMSG_MIN_TYPE ||
         (nlh->nlmsg_flags & ~(NLM_F_REQUEST)))
@@ -289,11 +291,17 @@ static unsigned int netfw_observe(void *priv, struct sk_buff *skb,
              * lab ingress interface + destination IP + UDP port.
              * No packet modification and no dynamic allocation in hook.
              */
-            /* Phase 33: both gates require the dedicated lab ingress and IP.
+            /* Phase 34: do not evaluate staged rules on IPv4 fragments.
+             * Phase 33: both gates require the dedicated lab ingress and IP.
              * Only UDP with a validated transport header reaches this code.
              * The staged table is NEVER consulted outside that lab scope.
              */
-            staged_drop = lab_rules && state && state->in &&
+            /* Phase 34: fail open on all fragmented datagrams. A port-only
+             * decision must not pretend to cover later fragments with no L4
+             * header. Future full defragmentation needs separate design. */
+            staged_drop = lab_rules &&
+                !(ntohs(iph->frag_off) & (IP_MF | IP_OFFSET)) &&
+                state && state->in &&
                 !strncmp(state->in->name, NETFW_LAB_IFACE, IFNAMSIZ) &&
                 ntohl(iph->daddr) == NETFW_LAB_IPV4 &&
                 netfw_table_evaluate(&netfw_export_table, iph->saddr,

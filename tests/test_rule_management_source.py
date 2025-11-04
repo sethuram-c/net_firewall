@@ -26,6 +26,6 @@ class RuleManagementTests(unittest.TestCase):
         self.assertIn("netfw_manage_replace(&netfw_export_table", MOD)
         hook = MOD.split("static unsigned int netfw_observe", 1)[1].split("static int __init", 1)[0]
         self.assertIn("netfw_table_evaluate(&netfw_export_table", hook)
-        self.assertIn("lab_rules && state && state->in", hook)
+        self.assertIn("lab_rules &&\n                !(ntohs(iph->frag_off) & (IP_MF | IP_OFFSET)) &&\n                state && state->in", hook)
 
 if __name__ == "__main__": unittest.main()
