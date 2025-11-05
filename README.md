@@ -525,3 +525,31 @@ This is deliberately restricted demonstration enforcement, **not a full dynamic 
 - `sudo bash scripts/test_lab_hardening.sh` exercises disabled enforcement, module reload (no persistent staging state), staged positive/negative UDP cases, invalid input and atomicity, empty-table reset, and cleanup in an isolated veth/netns lab. Script refuses an existing module or interface; **run only in a disposable VM**.
 - This phase does not promise full hardening: UDP spoofing, TCP stateful enforcement, fragments, network namespace isolation and a dedicated Generic Netlink family are future concerns.
 - Verification: `make clean && make check-build && make verify-build`; then privileged `sudo bash scripts/test_failure_paths.sh`, `sudo bash scripts/test_verdict_regression.sh`, `sudo bash scripts/test_staged_lab_rules.sh`, `sudo bash scripts/test_lab_hardening.sh`. Kernel build and privileged tests must run on Fedora.
+
+## Phase 35/35 — Final project audit, demonstration and portfolio release
+
+Run `python3 scripts/final_audit.py --json` or `make final-audit` for an
+unprivileged, read-only release audit. The audit checks required project files
+and runs Python/source and Bash-syntax tests; it does not load modules, alter
+rules, create interfaces or execute privileged tests. Run
+`python3 scripts/final_audit.py --json --require-module` only after successfully
+compiling the kernel module on your Fedora machine.
+
+The final resources are `docs/DEMO_RUNBOOK.md` (privileged Fedora walkthrough),
+`docs/ARCHITECTURE.md` (design and limitations), `docs/PORTFOLIO.md` (accurate
+project descriptions), and `docs/RELEASE_CHECKLIST.md` (release checklist).
+Complete the privileged regressions on a disposable Fedora VM before claiming
+a fully verified release:
+
+```bash
+make clean && make check-build && make verify-build
+python3 scripts/final_audit.py --json --require-module
+sudo bash scripts/test_failure_paths.sh
+sudo bash scripts/test_verdict_regression.sh
+sudo bash scripts/test_staged_lab_rules.sh
+sudo bash scripts/test_lab_hardening.sh
+```
+
+**Scope:** Live rule enforcement is limited to the opt-in isolated UDP lab.
+Connection-tracking helpers are demonstrational and do not drive live packet
+verdicts. The project is not a production-ready stateful firewall.

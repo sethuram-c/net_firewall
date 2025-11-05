@@ -662,3 +662,19 @@ Note: Phase 32 authentication/privileged tests have not been confirmed on the us
 - [ ] Confirm teardown and commit with planned 2026-12-04 21:44 +05:30 metadata.
 
 **Next:** Phase 35 — final audit, packaging and demo runbook.
+
+## Phase 35/35 — Final release audit, demo and portfolio
+**Status:** Release artifacts and unprivileged audit implemented; Fedora build
+and privileged network regressions must be confirmed on the target system.
+
+- [x] Add read-only `scripts/final_audit.py` and `make final-audit`.
+- [x] Add `docs/DEMO_RUNBOOK.md`, `docs/ARCHITECTURE.md`,
+  `docs/PORTFOLIO.md`, and `docs/RELEASE_CHECKLIST.md`.
+- [x] Add nine Phase 35 release tests (285 total Python tests).
+- [x] Document the opt-in isolated UDP rule boundary and incomplete live
+  connection-tracking integration, without claiming production readiness.
+- [ ] Fedora: `make clean && make check-build && make verify-build`.
+- [ ] Fedora: `python3 scripts/final_audit.py --json --require-module`.
+- [ ] Fedora VM: run all four privileged regression scripts in the demo runbook.
+- [ ] Verify module, veth and network namespace cleanup.
+- [ ] Create the final Git commit (planned metadata December 5, 2026, 21:37 IST).
