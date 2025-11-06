@@ -1,40 +1,32 @@
-# NETFW final demonstration runbook (Phase 35)
+# Demo runbook
 
-**Target:** disposable Fedora 44 VM, matching kernel headers (previously verified on `7.2.9-201.fc44.x86_64`). Work in the repository root. **Never run the packet tests on a production host.** The lab uses an isolated veth and namespace, but a kernel module still executes in the host kernel.
+These commands were written for a disposable Fedora VM. Check `uname -r` against the installed kernel development headers before building. The tests insert a kernel module and create a network namespace; don't run them on a host you depend on remotely.
 
-## A. Preflight, build and local audit
+## 1. Build and inspect
 
 ```bash
 uname -r
 bash scripts/check_env.sh
-python3 scripts/final_audit.py --json
 make clean
 make check-build
 make verify-build
 python3 scripts/final_audit.py --json --require-module
 ```
 
-The audit executes `make check` (not root-required) and checks expected files. It **does not** verify privileged tests or claim a build has succeeded. `--require-module` insists that a build artifact exists; it does not load the module.
+The audit is read-only and covers project layout and source checks. A passing audit is not evidence that packets have been filtered.
 
-## B. Fault injection and legacy behavior
+## 2. Run isolated regressions
 
 ```bash
 sudo bash scripts/test_failure_paths.sh
 sudo bash scripts/test_verdict_regression.sh
-```
-
-Expected: two deliberately failed `insmod` operations with `Cannot allocate memory`, followed by PASS reports; legacy lab default ACCEPT and opt-in UDP/54321 DROP. `insmod` failure is expected in the fault-injection tests only.
-
-## C. Authenticated staging and isolated enforcement
-
-```bash
 sudo bash scripts/test_staged_lab_rules.sh
 sudo bash scripts/test_lab_hardening.sh
 ```
 
-These scripts must start with the module and lab interface absent. They manage their own temporary namespace, veth and module lifecycle. The Phase 34 script verifies opt-out, opt-in, reload, invalid replacement and clear. If either fails, inspect `sudo journalctl -k -b --no-pager | grep netfw_hello` and cleanup checks, and do not publish a PASS claim.
+The first script deliberately makes `insmod` fail twice. The other scripts create their own lab veth/network namespace and check delivery for allowed and dropped UDP packets. Do not preload the module before running them. If one fails, inspect the kernel journal and verify cleanup before trying again.
 
-## D. Netlink demonstration (separate from lab tests)
+## 3. Try Netlink without enforcement
 
 ```bash
 sudo insmod kernel/netfw_hello.ko
@@ -42,22 +34,22 @@ python3 userspace/netfw_client.py diagnose --json
 python3 userspace/netfw_client.py ping --json
 python3 userspace/netfw_client.py status --json
 python3 userspace/netfw_client.py rules --json
-python3 userspace/netfw_client.py apply --file examples/rules_snapshot.json --json  # expect EPERM
+python3 userspace/netfw_client.py apply --file examples/rules_snapshot.json --json
 sudo python3 userspace/netfw_client.py apply --file examples/rules_snapshot.json --json
 python3 userspace/netfw_client.py rules --json
 sudo rmmod netfw_hello
 ```
 
-The `apply` command without sudo should fail unless this user already has `CAP_NET_ADMIN`. The privileged write updates the staging table. **With `lab_rules=0` (default), staged DROP rules do not affect live packet verdicts.** The sample contains illustrative rules; read-only RULES is a snapshot, not evidence of packet matching.
+The first `apply` normally fails with `EPERM`; the privileged request should succeed. A subsequent `rules` query shows the staged values. They are not enforced because this loading sequence leaves `lab_rules` disabled. If your unprivileged user already has `CAP_NET_ADMIN`, the negative authorization example is not a valid test.
 
-## E. Teardown and evidence
+## 4. Check teardown
 
 ```bash
 lsmod | grep '^netfw_hello' || echo 'Module unloaded'
-ip link show nfwt10h
-sudo ip netns list
-git status --short
-git rev-list --count HEAD
+ip link show nfwt10h   # expected: device not found
+sudo ip netns list     # no leftover test namespace
 ```
 
-Expected: module absent, interface absent, test namespace absent. Save the terminal output showing test summaries, commit hash and any honest limitations. Do not include `*.ko`, build objects, logs or PDF study guide in the repository commit.
+For troubleshooting, run `sudo journalctl -k -b --no-pager | grep netfw_hello`. If a test has left a module or interface behind, inspect what it owns rather than deleting unrelated networking resources.
+
+The demo is successful only when the Fedora build, the applicable isolated tests and cleanup all succeed. Keep actual console output alongside the release, not fabricated sample results.

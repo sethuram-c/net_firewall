@@ -1,26 +1,35 @@
-# Architecture and threat boundaries
+# How NETFW fits together
 
-```
-Python CLI (userspace/netfw_client.py)
-   | AF_NETLINK / NETLINK_USERSOCK: PING, STATUS, RULES, REPLACE
-   v
-Kernel module (kernel/netfw_hello.c)
-   | validates Netlink framing, size, version, command and request ID
-   | REPLACE requires netlink_capable(..., CAP_NET_ADMIN)
-   v
-Bounded rule table (16 ordered entries, spin_lock_bh)
-   | snapshot / atomic replacement, default policy
-   +----> opt-in IPv4 PRE_ROUTING evaluation
-            ONLY lab_rules=1; nfwt10h; 198.18.0.2; valid unfragmented UDP
-            separate legacy lab_drop still supported
+There are two paths in the module: packets enter through Netfilter, while the CLI talks to the module over Netlink. They meet at the bounded rule table, but only when the opt-in lab gate is enabled.
 
-Separate educational 5-tuple connection hash table (8 buckets x 4 entries)
-  -> bidirectional lookup, TCP simplified states, UDP pseudo-state,
-     explicit timeout expiration/cleanup; NOT wired into live verdicts.
+```text
+Python CLI -- Netlink request --> netfw_nl_receive()
+                                        |
+                              validate / CAP_NET_ADMIN
+                                        |
+                             16-rule staging table
+                                        |
+IPv4 PRE_ROUTING --> parse header --> lab UDP gate --> first-match verdict
+                         |
+                  other traffic: ACCEPT
 ```
 
-**Important limitations:** Not a production or general-purpose stateful firewall. Connection metadata does not protect active packets. Staged rules operate only on tightly scoped lab UDP; other traffic is unaffected. Fragmented traffic deliberately bypasses staged filtering and is ACCEPTed. There is no packet reassembly, TCP sequence validation, background connection expiration, namespaced Generic Netlink family, persistent configuration, true firewall telemetry or workload hardening. NETLINK_USERSOCK can conflict with another user. CAP_NET_ADMIN grants privileged staging rights; it is not per-rule sandbox isolation. Module parameters default to safe lab opt-out. No guarantees of protection against malicious traffic.
+## Packet path
 
-**Memory and concurrency:** packet hook is allocation-free; rule and connection tables are bounded; table operations are protected by spin_lock_bh. Kernel teardown unregisters hook and releases socket/resources. Run user-owned namespace/veth cleanup separately.
+`kernel/netfw_hello.c` registers an IPv4 `NF_INET_PRE_ROUTING` hook in `init_net`. Header access uses `skb_header_pointer()` and checks IP and transport lengths before reading ports. Staged rules are considered only when `lab_rules=1`, ingress is `nfwt10h`, the destination is `198.18.0.2`, and the packet is valid, unfragmented UDP. Rules are checked in order, with a configured fallback action. The original `lab_drop` parameter is independent of the staged rule table.
 
-**Verifying claims:** source tests prove source/API contracts, not functional safety. Fedora Kbuild confirms kernel compatibility for its exact running kernel. Only privileged test scripts provide runtime lab evidence; release claims must identify which tests were actually executed.
+Everything else returns `NF_ACCEPT`. Fragmented datagrams are not safely inspected by these port rules. This is an intentional constraint of the lab, not a fragment-handling implementation.
+
+## Control path
+
+`userspace/netfw_client.py` exchanges versioned binary messages with the module using `NETLINK_USERSOCK`. The kernel rejects unsupported framing and validates message fields and lengths. `REPLACE` requires the sender to have `CAP_NET_ADMIN`. It validates every incoming rule before swapping the table under `spin_lock_bh()`. `RULES` copies a bounded snapshot; it does not expose kernel pointers. Python checks response lengths, identifiers and reserved fields before using the payload.
+
+The staging table holds at most 16 rules. The live packet hook does not allocate memory while evaluating them. `STATUS` currently checks that the endpoint is reachable; it is not a counter API.
+
+## Connection tracking is separate
+
+`netfw_conn.h` implements an 8-bucket, four-slots-per-bucket table keyed by a TCP/UDP five-tuple. It supports original/reply lookup, small TCP state transitions, a UDP replied state, explicit jiffies-based expiry and removal. It is exercised in the module's initialization tests and is NOT wired into live verdicts: the packet hook never queries it. Calling the current module a *stateful enforcing firewall* would be inaccurate.
+
+## Things I would change next
+
+A dedicated Generic Netlink family would avoid depending on the shared `NETLINK_USERSOCK` number. A production implementation would also need coherent fragmentation/reassembly policy, packet-path flow integration, TCP sequence tracking, periodic expiry, counters, network namespace scoping, and substantially more adversarial testing. For now, the isolated lab boundary keeps mistakes from applying to normal traffic.

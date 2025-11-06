@@ -1,17 +1,22 @@
-# NETFW — Linux Netfilter learning firewall
+# Project notes for a portfolio
 
-**Portfolio-ready overview:** Built an out-of-tree Linux kernel module in C with IPv4 Netfilter pre-routing inspection, strict UDP lab-only policy evaluation and a Python CLI communicating over Netlink. Implemented bounded rule storage, ordered match predicates, authenticated CAP_NET_ADMIN staging updates, read-only rule snapshots and multiple network-namespace regression scripts. Added a separate 5-tuple connection-table learning implementation with simplified TCP/UDP state metadata and expiration utilities.
+**NETFW — Linux Netfilter firewall lab**  
+C / Linux kernel / Netfilter / Netlink / Python / Bash
 
-**Tech stack:** C (Linux kernel/Kbuild, Netfilter, spinlocks, Netlink), Python (CLI, protocol validation, unittest), Bash (fault-injection, veth/netns regression), Fedora 44.
+I wrote NETFW to get hands-on with packet processing in the Linux kernel and the interface between kernel configuration and a userspace tool. The module inspects incoming IPv4 packets, stores ordered firewall rules in a bounded table, and lets a Python CLI stage and inspect those rules over Netlink. The filtering demonstration is deliberately limited to UDP packets on an isolated test interface.
 
-**Resume bullets (accurate scope):**
-- Designed and validated an out-of-tree IPv4 Netfilter module with opt-in, interface/address-scoped UDP rule enforcement for isolated lab traffic.
-- Implemented a bounded (16-entry) synchronized rule table, versioned Netlink messaging and privilege-gated atomic rule updates with a Python inspection/apply CLI.
-- Built a separate bounded 5-tuple connection data structure with bidirectional lookup, simplified TCP/UDP metadata and explicit expiration, without claiming live stateful enforcement.
-- Created repeatable Python structural checks and privileged network-namespace regression scripts to test malformed inputs, fault injection, and cleanup.
+The harder engineering details were bounds checking around packet headers and Netlink messages, ownership and cleanup during failed module initialization, locking around shared rule data, and designing network-namespace tests that leave the host unchanged after they exit.
 
-**Demo sequence:** Follow `docs/DEMO_RUNBOOK.md` exactly. Show the negative and positive lab UDP test, non-root write rejection, privileged staging, live RULES snapshot, and clean module/namespace teardown. Attach command output only after actually running it.
+## Resume version
 
-**Limitations to disclose:** educational prototype; live stateful connection tracking not integrated; no general ingress firewall policy; staged filtering only on `nfwt10h` to `198.18.0.2`; fragmented packets bypass staged policy; Netlink uses shared NETLINK_USERSOCK.
+- Developed an out-of-tree C kernel module using IPv4 Netfilter hooks, bounded packet-header parsing and ordered lab-only UDP rules.
+- Built a 16-entry spinlock-protected rule table and a Netlink/Python CLI for validated snapshots and capability-gated atomic rule updates.
+- Implemented a separate 5-tuple connection-tracking prototype with bidirectional lookup, simplified TCP/UDP states and explicit timeouts; tested the module with Python checks and isolated veth/netns regressions.
 
-**Suggested README portfolio subtitle:** “Educational, fail-safe IPv4 Netfilter + Netlink firewall lab; not a production security appliance.”
+## What to show in an interview
+
+Start with `kernel/netfw_hello.c`: explain the `PRE_ROUTING` hook and why header access isn't a direct pointer dereference. Then show `kernel/netfw_manage.h` for validate-before-publish and `userspace/netfw_protocol.py` for the wire contract. Finish with the staged UDP test, including teardown. Be clear that tracking state and *enforcing* state are different milestones here.
+
+## Current limitations
+
+This is a learning project, not a deployable security appliance. Connection state is not integrated into the live verdict path. Only unfragmented UDP on `nfwt10h` to `198.18.0.2` is eligible for staged filtering, and the Netlink endpoint is built on the shared `NETLINK_USERSOCK` protocol number. There is no persistent policy database or real packet telemetry.
